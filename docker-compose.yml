@@ -50,22 +50,31 @@ services:
       retries: 3
       start_period: 10s
 
-  # Add other MCP servers here as they're implemented
-  # observability-cloudwatch:
-  #   build:
-  #     context: ./mcp-servers/observability-cloudwatch
-  #     dockerfile: Dockerfile
-  #   container_name: mcp-observability-cloudwatch
-  #   ports:
-  #     - "8002:8002"
-  #   environment:
-  #     - HOST=0.0.0.0
-  #     - PORT=8002
-  #     - AWS_REGION=${AWS_REGION:-us-east-1}
-  #   volumes:
-  #     - ${HOME}/.aws:/root/.aws:ro
-  #   networks:
-  #     - ops-autopilot-network
+  observability-cloudwatch:
+    build:
+      context: ./mcp-servers/observability-cloudwatch
+      dockerfile: Dockerfile
+    container_name: mcp-observability-cloudwatch
+    ports:
+      - "8002:8002"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8002
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ENDPOINT_URL=${AWS_ENDPOINT_URL:-}
+      - ALLOWLIST_ENABLED=${ALLOWLIST_ENABLED:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Mount AWS credentials if using local credentials file
+      - ${HOME}/.aws:/root/.aws:ro
+    networks:
+      - ops-autopilot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 networks:
   ops-autopilot-network:

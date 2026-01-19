@@ -3,9 +3,9 @@
 from typing import Optional
 
 from shared.schemas.events import PipelineFailureEvent
-from shared.schemas.rca import PipelineIncidentAnalysis
 
-from agent_host.agents.pipeline_rca_agent import PipelineRCAAgent
+from agent_host.agents.coordinator import CoordinatorAgent
+from agent_host.agents.remediation_agent import RemediationAgent, RemediationPlan
 from agent_host.logging import get_logger
 from agent_host.state.incident_store import IncidentStore
 from agent_host.workflows.base import Workflow, WorkflowResult
@@ -18,7 +18,8 @@ class PipelineFailureWorkflow(Workflow):
 
     def __init__(self):
         """Initialize pipeline failure workflow."""
-        self.rca_agent = PipelineRCAAgent()
+        self.coordinator = CoordinatorAgent()
+        self.remediation_agent = RemediationAgent()
         self.incident_store = IncidentStore()
 
     def handle(self, event: PipelineFailureEvent) -> WorkflowResult:
@@ -35,32 +36,61 @@ class PipelineFailureWorkflow(Workflow):
             f"state_machine_arn={event.state_machine_arn}"
         )
 
-        # Step 1: Idempotency check
-        incident_id = self._generate_incident_id(event)
-        if self.incident_store.exists(incident_id):
-            logger.info(f"Incident already processed: {incident_id}")
-            return WorkflowResult(
-                success=False, incident_id=incident_id, reason="duplicate"
-            )
-
         try:
-            # Step 2: Activate Pipeline RCA Agent
-            logger.info("Activating Pipeline RCA Agent")
-            rca_result: PipelineIncidentAnalysis = self.rca_agent.investigate(event)
+            # Step 1: Coordinator orchestrates investigation
+            logger.info("Coordinating investigation via Coordinator Agent")
+            decision_packet = self.coordinator.coordinate(event)
 
-            # Step 3: Store incident
-            self.incident_store.save(incident_id, rca_result, event)
+            incident_id = decision_packet.incident_id
+
+            # Step 2: Execute remediation if safe to autofix
+            if decision_packet.safe_to_autofix and decision_packet.actions_allowed:
+                logger.info(
+                    f"Safe to autofix: executing {len(decision_packet.actions_allowed)} actions"
+                )
+
+                # Extract RecommendedAction objects from allowed actions
+                allowed_actions = []
+                for action_dict in decision_packet.actions_allowed:
+                    if "recommended_action" in action_dict:
+                        allowed_actions.append(action_dict["recommended_action"])
+
+                # Create remediation plan from allowed actions
+                remediation_plan = RemediationPlan(
+                    incident_id=incident_id,
+                    actions=allowed_actions,
+                    target_tier=event.tier.value if event.tier else None,
+                    context={
+                        "execution_arn": event.execution_arn.value if event.execution_arn else None,
+                        "state_machine_arn": event.state_machine_arn.value if event.state_machine_arn else None,
+                        "target": event.execution_arn.value if event.execution_arn else event.state_machine_arn.value if event.state_machine_arn else None,
+                    },
+                )
+
+                # Execute remediation
+                remediation_result = self.remediation_agent.execute_remediation(remediation_plan)
+
+                logger.info(
+                    f"Remediation complete: success={remediation_result.success}, "
+                    f"actions_taken={len(remediation_result.actions_taken)}"
+                )
+            else:
+                logger.info(
+                    f"Not safe to autofix or no actions allowed. "
+                    f"Needs human: {len(decision_packet.needs_human)} items"
+                )
 
             logger.info(
                 f"Pipeline failure processed: incident_id={incident_id}, "
-                f"classification={rca_result.classification}, "
-                f"confidence={rca_result.confidence.value}"
+                f"classification={decision_packet.root_cause.get('classification')}, "
+                f"confidence={decision_packet.root_cause.get('confidence')}"
             )
 
             return WorkflowResult(success=True, incident_id=incident_id)
 
         except Exception as e:
             logger.error(f"Error processing pipeline failure: {e}", exc_info=True)
+            incident_id = self._generate_incident_id(event)
             return WorkflowResult(
                 success=False, incident_id=incident_id, reason=f"error: {str(e)}"
             )

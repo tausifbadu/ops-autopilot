@@ -1,0 +1,32 @@
+# Resource Allowlists
+# Resources explicitly allowed for auto-remediation (even in prod)
+
+# Production allowlist (very restrictive)
+prod:
+  state_machines: []
+  # Example:
+  # - "arn:aws:states:us-east-1:123456789012:stateMachine:test-pipeline"
+  
+  services: []
+  # Example:
+  # - "my-safe-service-prod"
+  
+  executions: []
+  # Example:
+  # - "arn:aws:states:us-east-1:123456789012:execution:test-pipeline:exec-123"
+
+# Nonprod allowlist (can be empty - all allowed by default)
+nonprod:
+  state_machines: []
+  services: []
+  executions: []
+
+# Global deny list (never allow, regardless of tier)
+deny_list:
+  state_machines:
+    # - "arn:aws:states:us-east-1:123456789012:stateMachine:critical-pipeline"
+    # Add critical resources that should never be auto-remediated
+  
+  services:
+    # - "critical-api-service"
+    # Add critical services that should never be auto-restarted

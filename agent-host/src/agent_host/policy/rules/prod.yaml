@@ -1,0 +1,73 @@
+# Production Policy Rules
+# Default: DENY all write actions (safety first)
+
+tier: prod
+auto_remediate: false
+requires_approval: true
+
+rules:
+  # Read-only actions (always allowed)
+  - action: "read_only"
+    allowed: true
+    reason: "Read operations are safe"
+  
+  # Write actions (default deny)
+  - action: "start_execution"
+    allowed: false
+    reason: "Production does not allow auto-starting executions"
+    requires_approval: true
+  
+  - action: "stop_execution"
+    allowed: true  # Allow stopping runaway executions
+    reason: "Stopping executions is safe and prevents cost overruns"
+    conditions:
+      - execution_time_minutes > 60  # Only stop long-running executions
+      - cost_estimate > 100  # Or if cost is high
+  
+  - action: "restart_service"
+    allowed: false
+    reason: "Production services should not be auto-restarted"
+    requires_approval: true
+  
+  - action: "retry_execution"
+    allowed: false
+    reason: "Production retries require manual approval"
+    requires_approval: true
+  
+  - action: "scale_up"
+    allowed: false
+    reason: "Production scaling requires approval"
+    requires_approval: true
+  
+  - action: "scale_down"
+    allowed: false
+    reason: "Production scaling requires approval"
+    requires_approval: true
+  
+  - action: "delete"
+    allowed: false
+    reason: "Delete operations are never allowed in production"
+    always_deny: true
+  
+  - action: "update_config"
+    allowed: false
+    reason: "Configuration changes require approval"
+    requires_approval: true
+
+# Rate limits (if action is allowed)
+rate_limits:
+  stop_execution:
+    max_per_hour: 5
+    max_per_day: 20
+
+# Time windows (restrictions)
+time_windows:
+  # No actions during peak hours (except emergency stops)
+  peak_hours:
+    start: "09:00"
+    end: "17:00"
+    allowed_actions:
+      - stop_execution  # Emergency stops allowed
+    blocked_actions:
+      - restart_service
+      - scale_down

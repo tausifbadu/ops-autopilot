@@ -1,0 +1,77 @@
+# Non-Production Policy Rules
+# Default: ALLOW auto-remediation (with safeguards)
+
+tier: nonprod
+auto_remediate: true
+requires_approval: false
+
+rules:
+  # Read-only actions (always allowed)
+  - action: "read_only"
+    allowed: true
+    reason: "Read operations are safe"
+  
+  # Write actions (generally allowed in nonprod)
+  - action: "start_execution"
+    allowed: true
+    reason: "Nonprod allows auto-starting executions"
+    conditions:
+      - max_retries < 3  # Prevent infinite retries
+  
+  - action: "stop_execution"
+    allowed: true
+    reason: "Stopping executions is safe"
+  
+  - action: "restart_service"
+    allowed: true
+    reason: "Nonprod services can be auto-restarted"
+    conditions:
+      - max_restarts_per_hour < 3  # Rate limiting
+  
+  - action: "retry_execution"
+    allowed: true
+    reason: "Nonprod allows auto-retries"
+    conditions:
+      - retry_count < 3  # Max 3 retries
+      - last_retry_minutes_ago > 5  # Cooldown period
+  
+  - action: "scale_up"
+    allowed: true
+    reason: "Nonprod scaling up is safe"
+    conditions:
+      - current_capacity < max_capacity
+  
+  - action: "scale_down"
+    allowed: true
+    reason: "Nonprod scaling down is safe"
+    conditions:
+      - current_capacity > min_capacity
+  
+  - action: "delete"
+    allowed: false
+    reason: "Delete operations are never allowed (even in nonprod)"
+    always_deny: true
+  
+  - action: "update_config"
+    allowed: true
+    reason: "Nonprod config updates are allowed"
+    conditions:
+      - config_change_risk == "low"
+
+# Rate limits
+rate_limits:
+  restart_service:
+    max_per_hour: 5
+    max_per_day: 20
+  
+  retry_execution:
+    max_per_hour: 10
+    max_per_day: 50
+  
+  scale_up:
+    max_per_hour: 3
+    max_per_day: 10
+
+# Time windows (less restrictive in nonprod)
+time_windows:
+  # No restrictions in nonprod (can operate 24/7)

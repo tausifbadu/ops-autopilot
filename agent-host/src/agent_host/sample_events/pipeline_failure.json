@@ -1,0 +1,14 @@
+{
+  "event_type": "PIPELINE_FAILURE",
+  "execution_arn": {
+    "value": "arn:aws:states:us-east-1:123456789012:execution:MyStateMachine:run-123456"
+  },
+  "state_machine_arn": {
+    "value": "arn:aws:states:us-east-1:123456789012:stateMachine:MyStateMachine"
+  },
+  "failure_cause": "States.Timeout",
+  "error_message": "Execution timed out after 300 seconds",
+  "tier": "nonprod",
+  "source": "EventBridge",
+  "timestamp": "2024-01-15T10:30:00Z"
+}

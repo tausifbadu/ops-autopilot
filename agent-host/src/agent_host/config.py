@@ -37,6 +37,9 @@ class Config(BaseModel):
     mcp_finops_url: Optional[str] = Field(None, description="FinOps MCP server URL")
     mcp_devtools_url: Optional[str] = Field(None, description="DevTools MCP server URL")
     mcp_chatops_url: Optional[str] = Field(None, description="ChatOps MCP server URL")
+    mcp_devtools_url: Optional[str] = Field(
+        None, description="DevTools/GitHub MCP server URL"
+    )
     
     # SQS Configuration (AWS mode)
     sqs_queue_incidents: Optional[str] = Field(
@@ -78,9 +81,15 @@ class Config(BaseModel):
     # LLM Configuration
     llm_provider: str = Field(
         default="bedrock",
-        description="LLM provider: bedrock, openai, anthropic, gemini",
+        description="LLM provider: bedrock, openai, anthropic, gemini, grok",
     )
     llm_api_key: Optional[str] = Field(None, description="LLM API key (if needed)")
+    llm_model: Optional[str] = Field(None, description="LLM model name (optional)")
+    
+    # GitHub/Code Analysis Configuration
+    default_repository: Optional[str] = Field(
+        None, description="Default GitHub repository (owner/repo) for code analysis"
+    )
     
     # Logging
     log_level: str = Field(default="INFO", description="Logging level")
@@ -134,6 +143,9 @@ class Config(BaseModel):
                 mcp_chatops_url=os.getenv(
                     "MCP_CHATOPS_URL", "http://mcp-chatops:8008"
                 ),
+                mcp_devtools_url=os.getenv(
+                    "MCP_DEVTOOLS_URL", "http://mcp-devtools-github:8007"
+                ),
                 # SQS queues
                 sqs_queue_incidents=os.getenv("SQS_QUEUE_INCIDENTS"),
                 sqs_queue_dq=os.getenv("SQS_QUEUE_DQ"),
@@ -146,8 +158,10 @@ class Config(BaseModel):
                 # S3 bucket
                 s3_evidence_bucket=os.getenv("S3_EVIDENCE_BUCKET"),
                 # LLM
-                llm_provider=os.getenv("LLM_PROVIDER", "bedrock"),
+                llm_provider=os.getenv("LLM_PROVIDER", "openai" if not is_aws else "bedrock"),
                 llm_api_key=os.getenv("LLM_API_KEY"),
+                default_repository=os.getenv("DEFAULT_REPOSITORY"),
+                llm_model=os.getenv("LLM_MODEL"),
                 log_level=os.getenv("LOG_LEVEL", "INFO"),
                 local_mode=False,
             )
@@ -175,6 +189,7 @@ class Config(BaseModel):
                     "MCP_DEVTOOLS_URL", "http://localhost:8007"
                 ),
                 mcp_chatops_url=os.getenv("MCP_CHATOPS_URL", "http://localhost:8008"),
+                mcp_devtools_url=os.getenv("MCP_DEVTOOLS_URL", "http://localhost:8007"),
                 # Local storage
                 local_evidence_dir=os.getenv("LOCAL_EVIDENCE_DIR", "./evidence"),
                 local_mode=True,
@@ -182,6 +197,8 @@ class Config(BaseModel):
                 # LLM (can use same providers locally)
                 llm_provider=os.getenv("LLM_PROVIDER", "openai"),  # Default to OpenAI for local
                 llm_api_key=os.getenv("LLM_API_KEY"),
+                llm_model=os.getenv("LLM_MODEL"),
+                default_repository=os.getenv("DEFAULT_REPOSITORY"),
                 log_level=os.getenv("LOG_LEVEL", "INFO"),
             )
 

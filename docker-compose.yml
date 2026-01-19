@@ -27,6 +27,29 @@ services:
       retries: 3
       start_period: 10s
 
+  devtools-github:
+    build:
+      context: ./mcp-servers/devtools-github
+      dockerfile: Dockerfile
+    container_name: mcp-devtools-github
+    ports:
+      - "8007:8007"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8007
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
+      - ALLOWLIST_ENABLED=${ALLOWLIST_ENABLED:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    networks:
+      - ops-autopilot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   # Add other MCP servers here as they're implemented
   # observability-cloudwatch:
   #   build:

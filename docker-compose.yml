@@ -76,6 +76,32 @@ services:
       retries: 3
       start_period: 10s
 
+  data-execution-glue-emr:
+    build:
+      context: ./mcp-servers/data-execution-glue-emr
+      dockerfile: Dockerfile
+    container_name: mcp-data-execution-glue-emr
+    ports:
+      - "8003:8003"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8003
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ENDPOINT_URL=${AWS_ENDPOINT_URL:-}
+      - ALLOWLIST_ENABLED=${ALLOWLIST_ENABLED:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Mount AWS credentials if using local credentials file
+      - ${HOME}/.aws:/root/.aws:ro
+    networks:
+      - ops-autopilot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
 networks:
   ops-autopilot-network:
     driver: bridge

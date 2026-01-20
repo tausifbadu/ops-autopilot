@@ -9,50 +9,133 @@ An intelligent agentic system that monitors, analyzes, and automatically remedia
 ## 🎯 Overview
 
 Ops AutoPilot is a production-ready AI operations platform that combines:
+- **Multi-Region Architecture** - Agent Host and MCP Servers deployed across multiple AWS regions for low latency and high availability
 - **Multi-Agent Architecture** - Specialized AI agents for different incident types
 - **Model Context Protocol (MCP) Servers** - Secure, domain-specific tool interfaces
 - **LLM-Powered Analysis** - Automated root cause analysis using multiple LLM providers
 - **Policy Engine** - Safety guardrails for automated remediation
 - **Full Observability** - CloudWatch integration for logs, metrics, and traces
+- **Global State Management** - DynamoDB Global Tables and Central S3 for unified incident tracking
 
-**Current Status**: Phase 0 MVP ~90% Complete ✅
+**Current Status**: Phase 0 MVP ~90% Complete ✅  
+**Deployment**: Supports both single-region and multi-region deployments
 
 ---
 
 ## 🏗️ Architecture
 
+### Multi-Region Deployment Architecture
+
+Ops AutoPilot is designed for **multi-region deployment**, with Agent Host and MCP Servers running in each operational region, while maintaining global state through DynamoDB Global Tables and a central S3 evidence bucket.
+
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Event Sources                         │
-│  Step Functions | Glue/EMR | ECS APIs | CloudWatch      │
-└───────────────────────┬─────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────┐
-│              Agent Host (Orchestrator)                   │
-│  • Coordinator Agent                                    │
-│  • Pipeline RCA Agent                                   │
-│  • Remediation Agent                                    │
-│  • Policy Engine                                        │
-└───────────────────────┬─────────────────────────────────┘
-                        │
-        ┌───────────────┼───────────────┐
-        ▼               ▼               ▼
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ MCP Servers  │ │ MCP Servers  │ │ MCP Servers  │
-│ Orchestration│ │ Observability │ │ Data Exec   │
-│   (Step Fn)  │ │ (CloudWatch) │ │ (Glue/EMR)  │
-└──────────────┘ └──────────────┘ └──────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    GLOBAL RESOURCES (Single Region)                          │
+│                                                                              │
+│  ┌──────────────────┐              ┌──────────────────┐                    │
+│  │ DynamoDB Global  │              │ S3 Evidence      │                    │
+│  │ Tables           │              │ Bucket (Central)  │                    │
+│  │                  │              │                  │                    │
+│  │ • workflow_      │              │ • evidence/      │                    │
+│  │   registry       │              │   {region}/      │                    │
+│  │ • incidents      │              │   {incident_id}/ │                    │
+│  │ • baselines      │              │                  │                    │
+│  │                  │              │ Replicated to    │                    │
+│  │ Replicated to    │              │ all regions      │                    │
+│  │ all regions      │              │                  │                    │
+│  └──────────────────┘              └──────────────────┘                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              REGIONAL DEPLOYMENTS (Per Operational Region)                    │
+│                                                                              │
+│  Region: us-east-1          Region: us-west-2          Region: eu-west-1   │
+│  ┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐│
+│  │ Event Sources    │       │ Event Sources    │       │ Event Sources    ││
+│  │ (Regional)       │       │ (Regional)       │       │ (Regional)       ││
+│  └────────┬─────────┘       └────────┬─────────┘       └────────┬─────────┘│
+│           │                          │                          │          │
+│           ▼                          ▼                          ▼          │
+│  ┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐│
+│  │ Agent Host       │       │ Agent Host       │       │ Agent Host       ││
+│  │ (ECS Fargate)    │       │ (ECS Fargate)    │       │ (ECS Fargate)    ││
+│  │                  │       │                  │       │                  ││
+│  │ • Coordinator    │       │ • Coordinator    │       │ • Coordinator    ││
+│  │ • Pipeline RCA  │       │ • Pipeline RCA  │       │ • Pipeline RCA  ││
+│  │ • Remediation   │       │ • Remediation   │       │ • Remediation   ││
+│  │ • Policy Engine │       │ • Policy Engine │       │ • Policy Engine ││
+│  └────────┬─────────┘       └────────┬─────────┘       └────────┬─────────┘│
+│           │                          │                          │          │
+│           ▼                          ▼                          ▼          │
+│  ┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐│
+│  │ MCP Servers      │       │ MCP Servers      │       │ MCP Servers      ││
+│  │ (8 servers)      │       │ (8 servers)      │       │ (8 servers)      ││
+│  │                  │       │                  │       │                  ││
+│  │ • orchestration  │       │ • orchestration  │       │ • orchestration  ││
+│  │ • observability  │       │ • observability  │       │ • observability  ││
+│  │ • data-execution │       │ • data-execution │       │ • data-execution ││
+│  │ • devtools       │       │ • devtools       │       │ • devtools       │
+│  │ • ... (4 more)   │       │ • ... (4 more)   │       │ • ... (4 more)   ││
+│  └──────────────────┘       └──────────────────┘       └──────────────────┘│
+│           │                          │                          │          │
+│           └──────────────────────────┴──────────────────────────┘          │
+│                                    │                                         │
+│                                    ▼                                         │
+│                    ┌───────────────────────────────┐                        │
+│                    │   AWS Services (Regional)     │                        │
+│                    │   Step Functions, Glue, EMR   │                        │
+│                    └───────────────────────────────┘                        │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Components
 
-1. **Agent Host** - Central orchestrator that routes events to specialist agents
-2. **MCP Servers** - Domain-specific tool servers (orchestration, observability, data execution, devtools)
-3. **Coordinator Agent** - Orchestrates specialist agents and applies policy
-4. **Pipeline RCA Agent** - Investigates failures and generates root cause analysis
-5. **Remediation Agent** - Executes policy-gated remediation actions
-6. **Policy Engine** - Safety guardrails (tier-based, rate limiting, allowlists)
+1. **Agent Host** (Per Region) - Central orchestrator that routes events to specialist agents
+   - Processes regional events with low latency
+   - Accesses global DynamoDB tables for state
+   - Writes evidence to central S3 bucket
+
+2. **MCP Servers** (Per Region) - Domain-specific tool servers
+   - Deployed in each operational region
+   - Access regional AWS resources (Step Functions, CloudWatch, Glue, EMR)
+   - Support multi-region operations via ARN extraction
+
+3. **Global State** (Single Deployment)
+   - **DynamoDB Global Tables** - Replicated across all regions for low-latency access
+   - **Central S3 Bucket** - Single evidence store with regional prefixes
+
+4. **Coordinator Agent** - Orchestrates specialist agents and applies policy
+5. **Pipeline RCA Agent** - Investigates failures and generates root cause analysis
+6. **Remediation Agent** - Executes policy-gated remediation actions
+7. **Policy Engine** - Safety guardrails (tier-based, rate limiting, allowlists)
+
+### Multi-Region Benefits
+
+- ✅ **Low Latency** - Process incidents in the same region as failures
+- ✅ **High Availability** - Regional failover if one region fails
+- ✅ **Global State** - Single source of truth via DynamoDB Global Tables
+- ✅ **Centralized Evidence** - All evidence in one S3 bucket for analysis
+- ✅ **Regional Compliance** - Process data in required regions (GDPR, etc.)
+- ✅ **Scalability** - Scale independently per region
+
+### Deployment Options
+
+**Single-Region Deployment** (Simpler, for development/testing):
+- Agent Host and MCP Servers in one region
+- Regional DynamoDB tables and S3 bucket
+- Use `infra/terraform/main.tf`
+
+**Multi-Region Deployment** (Production, recommended):
+- Agent Host and MCP Servers in each operational region
+- Global DynamoDB tables (replicated across regions)
+- Central S3 evidence bucket (accessible from all regions)
+- Use `infra/terraform/multi-region/` modules
+
+**Local Development**:
+- MCP Servers in Docker containers
+- Agent Host runs locally
+- Local file storage for evidence
+- Use `docker-compose.yml` and `make local-run`
 
 ---
 
@@ -85,18 +168,26 @@ Ops AutoPilot is a production-ready AI operations platform that combines:
   - AWS Bedrock
   - Grok (X.AI)
 
+- **Multi-Region Deployment**
+  - Agent Host and MCP Servers deployed per region
+  - DynamoDB Global Tables for unified state
+  - Central S3 evidence bucket with regional organization
+  - Automatic region detection from ARNs
+
 - **Decision Packet Storage**
   - Local file storage for development
+  - DynamoDB Global Tables for production (multi-region)
+  - S3 evidence storage (central bucket)
   - Idempotency support
   - Full audit trail
 
 ### 🚧 Coming Soon (Phase 1+)
 
-- AWS deployment (ECS Fargate, DynamoDB, S3)
 - Data Quality Agent
 - Cost Optimization Agent
 - API Incident Agent
 - Code Fix Agent
+- Advanced monitoring & alerting
 
 ---
 
@@ -108,8 +199,23 @@ Ops AutoPilot is a production-ready AI operations platform that combines:
 - Docker and docker-compose
 - AWS credentials configured (`~/.aws/credentials`)
 - LLM API key (OpenAI, Anthropic, or AWS Bedrock access)
+- Terraform (for AWS deployment)
 
 ### Local Development Setup
+
+**Using Makefile (Recommended)**:
+```bash
+# Quick start - install dependencies and start MCP servers
+make quick-start
+
+# Run Agent Host with sample event
+make local-run
+
+# Or use custom event file
+make local-run EVENT_FILE=path/to/event.json
+```
+
+**Manual Setup**:
 
 1. **Clone the repository**
    ```bash
@@ -117,18 +223,25 @@ Ops AutoPilot is a production-ready AI operations platform that combines:
    cd ops-autopilot
    ```
 
-2. **Start MCP Servers**
+2. **Install dependencies**
    ```bash
+   make install
+   # Or manually:
+   pip install -e shared/
+   pip install -e agent-host/
+   ```
+
+3. **Start MCP Servers**
+   ```bash
+   make docker-up
+   # Or manually:
    docker-compose up -d
    
    # Verify they're running
-   curl http://localhost:8001/health  # orchestration-sfn
-   curl http://localhost:8002/health  # observability-cloudwatch
-   curl http://localhost:8003/health  # data-execution-glue-emr
-   curl http://localhost:8007/health  # devtools-github
+   make docker-health
    ```
 
-3. **Configure Environment**
+4. **Configure Environment**
    ```bash
    export LLM_PROVIDER=openai  # or anthropic, gemini, bedrock, grok
    export LLM_API_KEY=your-api-key
@@ -137,11 +250,52 @@ Ops AutoPilot is a production-ready AI operations platform that combines:
    export AWS_REGION=us-east-1
    ```
 
-4. **Process a Sample Event**
+5. **Process a Sample Event**
    ```bash
+   make local-run
+   # Or manually:
    cd agent-host
    python -m agent_host.main --local-file src/agent_host/sample_events/pipeline_failure.json
    ```
+
+### AWS Deployment
+
+#### Single-Region Deployment
+
+```bash
+cd infra/terraform
+terraform init
+terraform plan -var="environment=prod" -var="aws_region=us-east-1"
+terraform apply
+```
+
+#### Multi-Region Deployment
+
+**Step 1: Deploy Global Resources** (once, in primary region)
+```bash
+cd infra/terraform/multi-region/global
+terraform init
+terraform apply \
+  -var="environment=prod" \
+  -var="primary_region=us-east-1" \
+  -var="replica_regions=['us-west-2','eu-west-1']"
+```
+
+**Step 2: Deploy Regional Resources** (per region)
+```bash
+cd infra/terraform/multi-region/regional
+terraform workspace new us-east-1
+terraform workspace select us-east-1
+terraform apply \
+  -var="aws_region=us-east-1" \
+  -var="environment=prod" \
+  -var="global_dynamodb_tables.workflow_registry=..." \
+  -var="global_s3_evidence_bucket=..."
+```
+
+**Repeat Step 2 for each operational region** (us-west-2, eu-west-1, etc.)
+
+See [Multi-Region Deployment Guide](docs/architecture/MULTI_REGION_DEPLOYMENT.md) for detailed instructions.
 
 ### Expected Output
 
@@ -234,9 +388,24 @@ AWS_REGION=us-east-1
 # Uses ~/.aws/credentials for authentication
 ```
 
-**MCP Server URLs** (auto-detected in local mode)
+**MCP Server URLs** (auto-detected based on environment)
 - Local: `http://localhost:8001`, `8002`, `8003`, `8007`
-- AWS: Auto-discovered via service discovery
+- AWS (Single-Region): Auto-discovered via service discovery
+- AWS (Multi-Region): Regional service discovery per region
+
+**Multi-Region Configuration** (AWS Production)
+```bash
+# Global resources (set once)
+DYNAMODB_PRIMARY_REGION=us-east-1
+S3_EVIDENCE_REGION=us-east-1
+DYNAMODB_REGISTRY=prod-ops-autopilot-workflow-registry
+DYNAMODB_INCIDENTS=prod-ops-autopilot-incidents
+S3_EVIDENCE_BUCKET=prod-ops-autopilot-evidence
+
+# Regional resources (per region)
+AWS_REGION=us-west-2  # Current region
+SQS_QUEUE_INCIDENTS=https://sqs.us-west-2.amazonaws.com/.../incidents
+```
 
 ---
 
@@ -263,8 +432,16 @@ See `mcp-servers/README.md` for detailed documentation.
 
 ### Run Tests
 
+**Using Makefile**:
 ```bash
-# From project root
+make test              # Run all tests
+make test-unit         # Unit tests only
+make test-integration  # Integration tests (requires MCP servers)
+make test-coverage     # Tests with coverage report
+```
+
+**Manual**:
+```bash
 cd agent-host
 pytest tests/
 
@@ -276,10 +453,10 @@ pytest tests/test_policy_engine.py
 
 ```bash
 # Start MCP servers
-docker-compose up -d
+make docker-up
 
 # Process sample event
-python -m agent_host.main --local-file src/agent_host/sample_events/pipeline_failure.json
+make local-run
 
 # Verify decision packet was saved
 ls -la ./evidence/*_decision.json
@@ -291,12 +468,14 @@ ls -la ./evidence/*_decision.json
 
 - **[Current Status](docs/CURRENT_STATUS.md)** - Implementation progress
 - **[High-Level Architecture Diagram](docs/architecture/ARCHITECTURE_DIAGRAM.md)** - Complete system architecture
+- **[Multi-Region Deployment](docs/architecture/MULTI_REGION_DEPLOYMENT.md)** - Multi-region architecture and deployment guide
 - **[Code Flow & Process Lineage](docs/CODE_FLOW.md)** - Complete code-level flow documentation
 - **[Architecture Overview](docs/architecture/overview.md)** - System design
 - **[Implementation Plan](docs/implementation-plan.md)** - Detailed roadmap
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Local and AWS deployment
 - **[MCP Servers](mcp-servers/README.md)** - MCP server documentation
 - **[Policy Engine](agent-host/src/agent_host/policy/README.md)** - Policy rules guide
+- **[Terraform Structure](infra/terraform/STRUCTURE.md)** - Infrastructure code organization
 
 ---
 
@@ -329,20 +508,25 @@ ls -la ./evidence/*_decision.json
 - [x] MCP servers (4 complete)
 - [x] Human-readable summaries
 - [x] Decision packet storage
+- [x] Multi-region deployment architecture
+- [x] DynamoDB Global Tables support
+- [x] Central S3 evidence bucket
 - [ ] End-to-end testing
 
 ### Phase 1: Production Hardening
-- [ ] AWS deployment (ECS, DynamoDB, S3)
+- [x] AWS deployment (ECS, DynamoDB, S3)
+- [x] Multi-region Terraform modules
 - [ ] Data Quality Agent
 - [ ] Cost Optimization Agent
 - [ ] Monitoring & alerting
-- [ ] Terraform infrastructure
+- [ ] Production deployment validation
 
 ### Phase 2: Advanced Features
 - [ ] API Incident Agent
 - [ ] Code Fix Agent
-- [ ] Multi-region support
 - [ ] Advanced analytics
+- [ ] Cross-region incident correlation
+- [ ] Regional failover automation
 
 ---
 
@@ -371,4 +555,5 @@ For questions or issues:
 
 ---
 
-**Status**: Phase 0 MVP ~90% Complete - Ready for End-to-End Testing 🚀
+**Status**: Phase 0 MVP ~90% Complete - Ready for End-to-End Testing 🚀  
+**Deployment**: Multi-region ready - Deploy Agent Host and MCP Servers across all operational regions with global state management

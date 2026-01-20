@@ -1,4 +1,4 @@
-# Phase 0 Pending Items (Excluding Testing)
+# Phase 0 Pending Items (Excluding Testing) - UPDATED
 
 **Last Updated**: After Decision Packet Storage Implementation  
 **Status**: ~95% Complete (was 90%)
@@ -9,18 +9,17 @@
 
 - ✅ **Human-Readable Summary** - Implemented and ready for testing
 - ✅ **Decision Packet Storage** - Fully implemented (local mode)
-  - `_store_decision()` - Now saves DecisionPackets to local files
+  - `_store_decision()` - Now saves DecisionPackets
   - `_load_existing_decision()` - Now loads stored DecisionPackets
-  - `incident_store.exists()` - Now checks for incident files (local mode)
+  - `incident_store.exists()` - Now checks for incident files
   - `save_decision_packet()` - New method in IncidentStore
   - `load_decision_packet()` - New method in IncidentStore
-  - Idempotency works in local mode
 
 ---
 
-## ⚠️ Remaining Pending Items (All Low Priority - Phase 1 Scope)
+## ⚠️ Remaining Pending Items (All Low Priority)
 
-### 1. DynamoDB Storage (AWS Mode Only)
+### 1. DynamoDB Storage (AWS Mode Only) - Phase 1
 
 **Status**: Placeholder for AWS deployment  
 **Priority**: Low (Only needed for AWS deployment, not Phase 0)
@@ -31,7 +30,7 @@
 - ✅ Local file storage - **Complete**
 - ⚠️ DynamoDB storage - Placeholder
 
-**Methods to Implement** (Phase 1):
+**Methods to Implement**:
 - `_save_decision_dynamodb()` - Save decision packet to DynamoDB
 - `_load_decision_dynamodb()` - Load decision packet from DynamoDB
 - `_save_dynamodb()` - Save incident to DynamoDB
@@ -49,7 +48,7 @@
 
 ---
 
-### 3. Evidence Store S3 Save (AWS Mode Only)
+### 2. Evidence Store S3 Save (AWS Mode Only) - Phase 1
 
 **Status**: Local file save works, S3 save is placeholder  
 **Priority**: Low (Only needed for AWS deployment)
@@ -74,39 +73,14 @@ def _save_s3(self, incident_id, evidence):
 
 ---
 
-### 4. Incident Store DynamoDB Save (AWS Mode Only)
-
-**Status**: Local file save works, DynamoDB save is placeholder  
-**Priority**: Low (Only needed for AWS deployment)
-
-**Location**: `agent-host/src/agent_host/state/incident_store.py`
-
-**Current State**:
-```python
-def _save_dynamodb(self, incident_id, rca_result, event):
-    # TODO: Implement DynamoDB save
-    logger.info(f"Would save to DynamoDB: {incident_id} (not implemented yet)")
-```
-
-**Impact**:
-- Incidents won't be saved to DynamoDB in AWS mode
-- Only affects AWS deployment, not local testing
-
-**Why It's Low Priority**:
-- Local file save works for Phase 0 testing
-- Only needed when deploying to AWS
-- Can be implemented in Phase 1
-
----
-
-## ✅ Expected Placeholders (Not Pending)
+## ✅ Expected Placeholders (Not Pending - By Design)
 
 These are intentionally not implemented in Phase 0:
 
-1. **API Failure Investigation** - Placeholder in Coordinator (expected)
-2. **Restart Service Action** - Placeholder in Remediation Agent (expected)
-3. **Other Workflows** - API failure, DQ check, daily sweep, cost scan (not Phase 0)
-4. **Terraform** - 30% complete (infrastructure, not critical for MVP testing)
+1. **API Failure Investigation** - Placeholder in Coordinator (expected for Phase 0)
+2. **Restart Service Action** - Placeholder in Remediation Agent (expected for Phase 0)
+3. **Other Workflows** - API failure, DQ check, daily sweep, cost scan (not Phase 0 scope)
+4. **Terraform** - 30% complete (infrastructure, Phase 1 scope)
 
 ---
 
@@ -206,8 +180,8 @@ These are intentionally not implemented in Phase 0:
 The only remaining item is **end-to-end testing** to verify everything works together. All implementation is done, all features are built, and the system is ready for testing.
 
 The "pending" items are:
-- **AWS deployment features** (DynamoDB/S3) - Phase 1 scope
-- **Additional workflows** - Phase 1+ scope
-- **Testing** - Next step
+- **AWS deployment features** (Phase 1 scope)
+- **Additional workflows** (Phase 1+ scope)
+- **Testing** (next step)
 
 **Ready to test!** 🚀

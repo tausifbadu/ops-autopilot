@@ -62,9 +62,19 @@ class Config(BaseModel):
         None, description="DynamoDB table name for baselines"
     )
     
+    # Global DynamoDB Configuration (multi-region)
+    dynamodb_primary_region: Optional[str] = Field(
+        None, description="Primary region for DynamoDB global tables"
+    )
+    
     # S3 Configuration (AWS mode)
     s3_evidence_bucket: Optional[str] = Field(
         None, description="S3 bucket name for evidence storage"
+    )
+    
+    # Global S3 Configuration (multi-region)
+    s3_evidence_region: Optional[str] = Field(
+        None, description="Region where S3 evidence bucket is located"
     )
     
     # Local mode settings
@@ -155,8 +165,12 @@ class Config(BaseModel):
                 dynamodb_registry_table=os.getenv("DYNAMODB_REGISTRY"),
                 dynamodb_incidents_table=os.getenv("DYNAMODB_INCIDENTS"),
                 dynamodb_baselines_table=os.getenv("DYNAMODB_BASELINES"),
+                # Global DynamoDB configuration
+                dynamodb_primary_region=os.getenv("DYNAMODB_PRIMARY_REGION", os.getenv("AWS_REGION", "us-east-1")),
                 # S3 bucket
                 s3_evidence_bucket=os.getenv("S3_EVIDENCE_BUCKET"),
+                # Global S3 configuration
+                s3_evidence_region=os.getenv("S3_EVIDENCE_REGION", os.getenv("AWS_REGION", "us-east-1")),
                 # LLM
                 llm_provider=os.getenv("LLM_PROVIDER", "openai" if not is_aws else "bedrock"),
                 llm_api_key=os.getenv("LLM_API_KEY"),

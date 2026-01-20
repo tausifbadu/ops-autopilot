@@ -25,6 +25,21 @@ variable "s3_buckets" {
   type = map(string)
 }
 
+variable "enable_global_resources" {
+  type    = bool
+  default = false
+}
+
+variable "dynamodb_primary_region" {
+  type    = string
+  default = ""
+}
+
+variable "s3_evidence_region" {
+  type    = string
+  default = ""
+}
+
 # ECS Execution Role (for pulling images, writing logs)
 resource "aws_iam_role" "ecs_execution" {
   name = "${var.environment}-ops-autopilot-ecs-execution"
@@ -83,6 +98,131 @@ resource "aws_iam_role" "mcp_server_tasks" {
     }]
   })
 }
+
+output "ecs_execution_role_arn" {
+  value = aws_iam_role.ecs_execution.arn
+}
+
+output "agent_host_task_role_arn" {
+  value = aws_iam_role.agent_host_task.arn
+}
+
+# Agent Host Task Role Policy
+resource "aws_iam_role_policy" "agent_host_task" {
+  name = "${var.environment}-ops-autopilot-agent-host-task-policy"
+  role = aws_iam_role.agent_host_task.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      # Regional SQS permissions
+      [
+        {
+          Effect = "Allow"
+          Action = [
+            "sqs:ReceiveMessage",
+            "sqs:DeleteMessage",
+            "sqs:GetQueueAttributes"
+          ]
+          Resource = [for url in values(var.sqs_queue_urls) : url]
+        }
+      ],
+      # DynamoDB permissions (global or regional)
+      var.enable_global_resources ? [
+        {
+          Effect = "Allow"
+          Action = [
+            "dynamodb:GetItem",
+            "dynamodb:PutItem",
+            "dynamodb:UpdateItem",
+            "dynamodb:DeleteItem",
+            "dynamodb:Query",
+            "dynamodb:Scan"
+          ]
+          Resource = [
+            for table in values(var.dynamodb_tables) : "arn:aws:dynamodb:*:*:table/${table}"
+          ]
+        }
+      ] : [
+        {
+          Effect = "Allow"
+          Action = [
+            "dynamodb:GetItem",
+            "dynamodb:PutItem",
+            "dynamodb:UpdateItem",
+            "dynamodb:DeleteItem",
+            "dynamodb:Query",
+            "dynamodb:Scan"
+          ]
+          Resource = [
+            for table in values(var.dynamodb_tables) : "arn:aws:dynamodb:${var.region}:${var.account_id}:table/${table}"
+          ]
+        }
+      ],
+      # S3 permissions (global or regional)
+      var.enable_global_resources ? [
+        {
+          Effect = "Allow"
+          Action = [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject",
+            "s3:ListBucket"
+          ]
+          Resource = [
+            for bucket in values(var.s3_buckets) : "arn:aws:s3:::${bucket}/*"
+          ]
+        },
+        {
+          Effect = "Allow"
+          Action = [
+            "s3:ListBucket"
+          ]
+          Resource = [
+            for bucket in values(var.s3_buckets) : "arn:aws:s3:::${bucket}"
+          ]
+        }
+      ] : [
+        {
+          Effect = "Allow"
+          Action = [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject",
+            "s3:ListBucket"
+          ]
+          Resource = [
+            for bucket in values(var.s3_buckets) : "arn:aws:s3:::${bucket}/*"
+          ]
+        },
+        {
+          Effect = "Allow"
+          Action = [
+            "s3:ListBucket"
+          ]
+          Resource = [
+            for bucket in values(var.s3_buckets) : "arn:aws:s3:::${bucket}"
+          ]
+        }
+      ],
+      # CloudWatch Logs
+      [
+        {
+          Effect = "Allow"
+          Action = [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents"
+          ]
+          Resource = "arn:aws:logs:${var.region}:${var.account_id}:*"
+        }
+      ]
+    )
+  })
+}
+
+# MCP Server Task Role Policies (placeholder - add specific permissions per server)
+# For now, they inherit basic ECS permissions
 
 output "ecs_execution_role_arn" {
   value = aws_iam_role.ecs_execution.arn

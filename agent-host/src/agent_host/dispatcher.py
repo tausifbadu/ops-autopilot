@@ -1,6 +1,6 @@
 """Event dispatcher - routes events to appropriate workflows."""
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from shared.schemas.events import (
     APIFailureEvent,
@@ -22,6 +22,9 @@ from agent_host.workflows.daily_sweep import DailySweepWorkflow
 from agent_host.workflows.dq_check import DQCheckWorkflow
 from agent_host.workflows.pipeline_failure import PipelineFailureWorkflow
 
+if TYPE_CHECKING:
+    from agent_host.workflows.base import WorkflowResult
+
 logger = get_logger(__name__)
 
 
@@ -41,18 +44,20 @@ class Dispatcher:
             EventType.PIPELINE_SLA_CHECK: PipelineFailureWorkflow(),  # Similar to failure
         }
 
-    def dispatch(self, event: Event) -> Optional[str]:
+    def dispatch(self, event: Event) -> Optional["WorkflowResult"]:
         """Dispatch event to appropriate workflow.
 
         Args:
             event: Event to process
 
         Returns:
-            Incident ID if event was processed, None if skipped/error
+            WorkflowResult if event was processed, None if skipped/error
 
         Raises:
             ValueError: If event type is not supported
         """
+        from agent_host.workflows.base import WorkflowResult
+
         event_type = event.event_type
 
         logger.info(f"Dispatching event: {event_type} (event_id: {event.event_id})")
@@ -72,7 +77,7 @@ class Dispatcher:
                 logger.info(
                     f"Event processed successfully: {event_type} -> incident_id: {result.incident_id}"
                 )
-                return result.incident_id
+                return result
             else:
                 logger.warning(
                     f"Event processing skipped/failed: {event_type} -> reason: {result.reason}"

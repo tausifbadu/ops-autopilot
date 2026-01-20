@@ -42,15 +42,31 @@ def process_local_event(event_file: str):
 
     # Process event
     dispatcher = Dispatcher()
-    incident_id = dispatcher.dispatch(event)
+    result = dispatcher.dispatch(event)
 
-    if incident_id:
-        logger.info(f"✅ Event processed successfully: incident_id={incident_id}")
-        print(f"\n✅ Incident created: {incident_id}")
-        print(f"📁 Evidence saved to: {config.local_evidence_dir}/")
+    if result and result.success:
+        logger.info(f"✅ Event processed successfully: incident_id={result.incident_id}")
+        
+        # Print human-readable summary if decision packet is available
+        if result.decision_packet:
+            from agent_host.utils.summary import format_decision_summary
+            
+            summary = format_decision_summary(
+                decision_packet=result.decision_packet,
+                remediation_result=result.remediation_result,
+                evidence_dir=config.local_evidence_dir,
+            )
+            print("\n" + summary)
+        else:
+            # Fallback to simple message if no decision packet
+            print(f"\n✅ Incident created: {result.incident_id}")
+            print(f"📁 Evidence saved to: {config.local_evidence_dir}/")
     else:
         logger.warning("Event processing failed or was skipped")
-        print("\n⚠️  Event processing failed or was skipped")
+        if result:
+            print(f"\n⚠️  Event processing failed or was skipped: {result.reason}")
+        else:
+            print("\n⚠️  Event processing failed or was skipped")
         sys.exit(1)
 
 

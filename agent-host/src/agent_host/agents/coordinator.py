@@ -373,12 +373,28 @@ class CoordinatorAgent:
             decision: Decision packet
             event: Original event
         """
-        # Store in incident store (simplified for MVP)
-        # In production, this would store the full decision packet
         logger.info(f"Storing decision packet for incident: {incident_id}")
 
+        # Convert DecisionPacket to dictionary for storage
+        decision_dict = decision.model_dump()
+
+        # Store using incident store
+        if isinstance(event, PipelineFailureEvent):
+            self.incident_store.save_decision_packet(
+                incident_id=incident_id,
+                decision_packet=decision_dict,
+                event=event,
+            )
+        else:
+            # For API failure events, store without event (or convert if needed)
+            self.incident_store.save_decision_packet(
+                incident_id=incident_id,
+                decision_packet=decision_dict,
+                event=None,
+            )
+
     def _load_existing_decision(self, incident_id: str) -> DecisionPacket:
-        """Load existing decision packet (placeholder).
+        """Load existing decision packet.
 
         Args:
             incident_id: Incident ID
@@ -386,19 +402,61 @@ class CoordinatorAgent:
         Returns:
             Decision packet
         """
-        # Placeholder - would load from incident store
-        logger.warning(f"Loading existing decision not yet implemented for {incident_id}")
-        # Return a minimal decision packet
-        return DecisionPacket(
-            incident_id=incident_id,
-            event_type=EventType.PIPELINE_FAILURE,
-            what_happened="Incident already processed",
-            root_cause={"classification": "UNKNOWN", "confidence": 0.0, "hypothesis": "Duplicate"},
-            recommended_actions=[],
-            actions_allowed=[],
-            actions_blocked=[],
-            safe_to_autofix=False,
-            needs_human=[],
-            evidence_refs=[],
-            created_at=datetime.utcnow(),
-        )
+        logger.info(f"Loading existing decision packet for incident: {incident_id}")
+
+        # Load from incident store
+        decision_dict = self.incident_store.load_decision_packet(incident_id)
+
+        if decision_dict is None:
+            logger.warning(f"Decision packet not found for {incident_id}, returning minimal packet")
+            # Return a minimal decision packet if not found
+            return DecisionPacket(
+                incident_id=incident_id,
+                event_type=EventType.PIPELINE_FAILURE,
+                what_happened="Incident already processed (decision packet not found)",
+                root_cause={"classification": "UNKNOWN", "confidence": 0.0, "hypothesis": "Duplicate - packet not found"},
+                recommended_actions=[],
+                actions_allowed=[],
+                actions_blocked=[],
+                safe_to_autofix=False,
+                needs_human=[],
+                evidence_refs=[],
+                created_at=datetime.utcnow(),
+            )
+
+        try:
+            # Reconstruct DecisionPacket from dictionary
+            # Handle datetime conversion if needed
+            if "created_at" in decision_dict:
+                if isinstance(decision_dict["created_at"], str):
+                    # Parse ISO format datetime string
+                    dt_str = decision_dict["created_at"]
+                    if dt_str.endswith("Z"):
+                        dt_str = dt_str.replace("Z", "+00:00")
+                    decision_dict["created_at"] = datetime.fromisoformat(dt_str)
+                elif isinstance(decision_dict["created_at"], dict):
+                    # Handle if stored as dict (shouldn't happen, but be safe)
+                    logger.warning(f"created_at is dict, converting: {decision_dict['created_at']}")
+                    decision_dict["created_at"] = datetime.utcnow()
+
+            # Handle EventType enum conversion
+            if "event_type" in decision_dict and isinstance(decision_dict["event_type"], str):
+                decision_dict["event_type"] = EventType(decision_dict["event_type"])
+
+            return DecisionPacket(**decision_dict)
+        except Exception as e:
+            logger.error(f"Failed to reconstruct DecisionPacket from stored data: {e}", exc_info=True)
+            # Return minimal packet on error
+            return DecisionPacket(
+                incident_id=incident_id,
+                event_type=EventType.PIPELINE_FAILURE,
+                what_happened="Error loading existing decision packet",
+                root_cause={"classification": "UNKNOWN", "confidence": 0.0, "hypothesis": f"Error: {str(e)}"},
+                recommended_actions=[],
+                actions_allowed=[],
+                actions_blocked=[],
+                safe_to_autofix=False,
+                needs_human=[],
+                evidence_refs=[],
+                created_at=datetime.utcnow(),
+            )

@@ -44,6 +44,7 @@ class PipelineFailureWorkflow(Workflow):
             incident_id = decision_packet.incident_id
 
             # Step 2: Execute remediation if safe to autofix
+            remediation_result = None
             if decision_packet.safe_to_autofix and decision_packet.actions_allowed:
                 logger.info(
                     f"Safe to autofix: executing {len(decision_packet.actions_allowed)} actions"
@@ -86,7 +87,12 @@ class PipelineFailureWorkflow(Workflow):
                 f"confidence={decision_packet.root_cause.get('confidence')}"
             )
 
-            return WorkflowResult(success=True, incident_id=incident_id)
+            return WorkflowResult(
+                success=True,
+                incident_id=incident_id,
+                decision_packet=decision_packet,
+                remediation_result=remediation_result,
+            )
 
         except Exception as e:
             logger.error(f"Error processing pipeline failure: {e}", exc_info=True)

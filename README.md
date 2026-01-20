@@ -290,6 +290,7 @@ ls -la ./evidence/*_decision.json
 ## 📚 Documentation
 
 - **[Current Status](docs/CURRENT_STATUS.md)** - Implementation progress
+- **[Code Flow & Process Lineage](docs/CODE_FLOW.md)** - Complete code-level flow documentation
 - **[Architecture Overview](docs/architecture/overview.md)** - System design
 - **[Implementation Plan](docs/implementation-plan.md)** - Detailed roadmap
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Local and AWS deployment

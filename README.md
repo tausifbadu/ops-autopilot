@@ -467,6 +467,7 @@ ls -la ./evidence/*_decision.json
 ## 📚 Documentation
 
 - **[Current Status](docs/CURRENT_STATUS.md)** - Implementation progress
+- **[Phase 0 Gap Analysis](docs/PHASE0_GAP_ANALYSIS.md)** - ⚠️ Critical gaps identified from skill.md requirements
 - **[High-Level Architecture Diagram](docs/architecture/ARCHITECTURE_DIAGRAM.md)** - Complete system architecture
 - **[Multi-Region Deployment](docs/architecture/MULTI_REGION_DEPLOYMENT.md)** - Multi-region architecture and deployment guide
 - **[Code Flow & Process Lineage](docs/CODE_FLOW.md)** - Complete code-level flow documentation

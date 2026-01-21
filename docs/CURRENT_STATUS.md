@@ -161,6 +161,30 @@
 
 ## ⚠️ Remaining for Phase 0 MVP
 
+### Priority 0: Critical Gaps from skill.md Requirements ⚠️
+
+**Status**: **15 gaps identified** - See [PHASE0_GAP_ANALYSIS.md](PHASE0_GAP_ANALYSIS.md) for complete analysis
+
+**Critical Gaps** (Must fix before Phase 0 completion):
+1. ❌ Action-level idempotency (prevents duplicate remediation)
+2. ❌ Correlation ID & request ID propagation (blocks tracing)
+3. ❌ Circuit breakers & safety degradation (prevents runaway automation)
+4. ❌ Tool version contracts & registry (blocks safe upgrades)
+5. ❌ Job envelope standardization (blocks multi-service scaling)
+
+**High Priority Gaps** (Should fix before production):
+6. ❌ AWS API throttling & rate limiting (blocks scale)
+7. ❌ Heavy task isolation & budgeting (prevents timeouts)
+8. ❌ Multi-account support (STS AssumeRole)
+9. ❌ Platform metrics & SLOs (blocks operations)
+10. ❌ Verification checklists (blocks confidence)
+
+**Estimated Effort**: ~52 hours for Critical + High priority gaps
+
+**Recommendation**: Address Critical gaps before declaring Phase 0 complete.
+
+---
+
 ### Priority 1: End-to-End Testing (2-3 hours)
 
 **Status**: Not started

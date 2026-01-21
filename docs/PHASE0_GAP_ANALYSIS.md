@@ -96,6 +96,49 @@ class RemediationAgent:
 
 **Impact**: Cannot trace incidents across systems, debug distributed failures, or meet compliance requirements.
 
+**📖 See [CORRELATION_ID_VS_REQUEST_ID.md](CORRELATION_ID_VS_REQUEST_ID.md) for detailed explanation of the relationship between correlation_id and request_id.**
+
+##### Understanding the Three IDs
+
+**Key Differences**:
+
+| ID | Scope | Lifetime | Purpose | Example |
+|----|-------|----------|---------|---------|
+| **`incident_id`** | Business incident | Incident lifecycle | Identifies a business incident | `incident_run-123_20240115` |
+| **`correlation_id`** | Technical job/transaction | Job processing lifecycle | Groups all technical operations | `corr_abc123def456` |
+| **`request_id`** | Single HTTP request | One request-response | Identifies a specific API call | `req_xyz789` |
+
+**Relationship Hierarchy**:
+```
+incident_id (1 business incident)
+  └─ correlation_id (1 per incident - groups all operations)
+      └─ request_id (N per correlation_id - one per tool call)
+```
+
+**When to Use Each**:
+- **`incident_id`**: Business reporting, tickets, notifications, long-term tracking
+- **`correlation_id`**: Distributed tracing, debugging, audit trails, grouping operations
+- **`request_id`**: Debugging specific API calls, tracking request latency, identifying retries
+
+**Example Flow**:
+```python
+# 1. Business level - incident_id
+incident_id = "incident_run-123456_20240115103000"
+
+# 2. Technical level - correlation_id (generated once at job start)
+correlation_id = "corr_abc123def456"
+
+# 3. Request level - request_id (generated per tool call)
+# Tool Call 1
+request_id_1 = "req_xyz789"  # New ID per call
+# Tool Call 2  
+request_id_2 = "req_abc456"  # New ID per call
+# Tool Call 3
+request_id_3 = "req_def012"  # New ID per call
+
+# All three tool calls share same correlation_id but have different request_ids
+```
+
 **Required Changes**:
 ```python
 # shared/src/shared/schemas/common.py

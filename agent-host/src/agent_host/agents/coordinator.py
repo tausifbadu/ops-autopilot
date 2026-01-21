@@ -5,10 +5,12 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
-from shared.schemas import (
+from shared.schemas.events import (
     APIFailureEvent,
     EventType,
     PipelineFailureEvent,
+)
+from shared.schemas.rca import (
     PipelineIncidentAnalysis,
     RecommendedAction,
 )

@@ -60,13 +60,13 @@ class Dispatcher:
 
         event_type = event.event_type
 
-        logger.info(f"Dispatching event: {event_type} (event_id: {event.event_id})")
+        logger.info("Dispatching event: %s (event_id: %s)", event_type, event.event_id)
 
         # Get workflow for this event type
         workflow = self.workflows.get(event_type)
 
         if workflow is None:
-            logger.error(f"No workflow registered for event type: {event_type}")
+            logger.error("No workflow registered for event type: %s", event_type)
             raise ValueError(f"Unsupported event type: {event_type}")
 
         try:
@@ -75,18 +75,21 @@ class Dispatcher:
 
             if result.success:
                 logger.info(
-                    f"Event processed successfully: {event_type} -> incident_id: {result.incident_id}"
+                    "Event processed successfully: %s -> incident_id: %s", event_type, result.incident_id
                 )
                 return result
             else:
                 logger.warning(
-                    f"Event processing skipped/failed: {event_type} -> reason: {result.reason}"
+                    "Event processing skipped/failed: %s -> reason: %s", event_type, result.reason
                 )
                 return None
 
         except Exception as e:
             logger.error(
-                f"Error processing event {event_type} (event_id: {event.event_id}): {e}",
+                "Error processing event %s (event_id: %s): %s",
+                event_type,
+                event.event_id,
+                e,
                 exc_info=True,
             )
             raise

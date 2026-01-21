@@ -5,12 +5,10 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
-from shared.schemas.events import (
+from shared.schemas import (
     APIFailureEvent,
     EventType,
     PipelineFailureEvent,
-)
-from shared.schemas.rca import (
     PipelineIncidentAnalysis,
     RecommendedAction,
 )
@@ -18,7 +16,7 @@ from shared.schemas.rca import (
 from agent_host.agents.pipeline_rca_agent import PipelineRCAAgent
 from agent_host.config import config
 from agent_host.logging import get_logger
-from agent_host.policy import PolicyDecision, PolicyEngine, RemediationAction, get_policy_engine
+from agent_host.policy import PolicyDecision, RemediationAction, get_policy_engine
 from agent_host.state.evidence_store import EvidenceStore
 from agent_host.state.incident_store import IncidentStore
 
@@ -72,14 +70,14 @@ class CoordinatorAgent:
         Returns:
             Decision packet with merged results
         """
-        logger.info(f"Coordinating investigation for event: {event.event_type}")
+        logger.info("Coordinating investigation for event: %s", event.event_type)
         self.start_time = datetime.utcnow()
         self.tool_call_count = 0
 
         # Step 1: Generate incident ID and check idempotency
         incident_id = self._generate_incident_id(event)
         if self.incident_store.exists(incident_id):
-            logger.info(f"Incident already processed: {incident_id}")
+            logger.info("Incident already processed: %s", incident_id)
             # Return existing decision packet
             return self._load_existing_decision(incident_id)
 
@@ -124,16 +122,17 @@ class CoordinatorAgent:
             self._store_decision(incident_id, decision_packet, event)
 
             logger.info(
-                f"Coordination complete: incident_id={incident_id}, "
-                f"actions_allowed={len(actions_allowed)}, "
-                f"actions_blocked={len(actions_blocked)}"
+                "Coordination complete: incident_id=%s, actions_allowed=%d, actions_blocked=%d",
+                incident_id,
+                len(actions_allowed),
+                len(actions_blocked),
             )
 
             return decision_packet
 
-        except Exception as e:
-            logger.error(f"Error coordinating investigation: {e}", exc_info=True)
-            # Return error decision packet
+        except (ValueError, KeyError, AttributeError, TypeError) as e:
+            # Handle expected errors (data validation, missing attributes, etc.)
+            logger.error("Expected error during investigation: %s", e, exc_info=True)
             return DecisionPacket(
                 incident_id=incident_id,
                 event_type=event.event_type,
@@ -144,6 +143,23 @@ class CoordinatorAgent:
                 actions_blocked=[],
                 safe_to_autofix=False,
                 needs_human=[{"reason": "investigation_error", "error": str(e)}],
+                evidence_refs=[],
+                created_at=datetime.utcnow(),
+            )
+        except Exception as e:
+            # Handle unexpected errors (log critically and re-raise for monitoring)
+            logger.critical("Unexpected error during investigation: %s", e, exc_info=True)
+            # Still return error decision packet to prevent complete failure
+            return DecisionPacket(
+                incident_id=incident_id,
+                event_type=event.event_type,
+                what_happened=f"Unexpected error during investigation: {str(e)}",
+                root_cause={"classification": "UNKNOWN", "confidence": 0.0, "hypothesis": "Unexpected error occurred"},
+                recommended_actions=[],
+                actions_allowed=[],
+                actions_blocked=[],
+                safe_to_autofix=False,
+                needs_human=[{"reason": "unexpected_error", "error": str(e)}],
                 evidence_refs=[],
                 created_at=datetime.utcnow(),
             )
@@ -162,7 +178,7 @@ class CoordinatorAgent:
         elif event.event_type == EventType.API_FAILURE:
             return self._investigate_api_failure(event)
         else:
-            logger.warning(f"Unknown event type: {event.event_type}")
+            logger.warning("Unknown event type: %s", event.event_type)
             return {
                 "what_happened": f"Unknown event type: {event.event_type}",
                 "classification": "UNKNOWN",
@@ -187,6 +203,15 @@ class CoordinatorAgent:
         logger.info("Activating Pipeline RCA Agent")
         rca_result: PipelineIncidentAnalysis = self.pipeline_rca_agent.investigate(event)
 
+        # Safely extract evidence refs (handle cases where ref might not have s3_uri)
+        evidence_refs = []
+        for ref in rca_result.evidence_refs:
+            if hasattr(ref, 's3_uri'):
+                evidence_refs.append(ref.s3_uri)
+            else:
+                # Fallback: convert to string representation
+                evidence_refs.append(str(ref))
+        
         return {
             "what_happened": f"Pipeline failure: {event.execution_arn}",
             "classification": rca_result.classification.value,
@@ -194,7 +219,7 @@ class CoordinatorAgent:
             "root_cause_hypothesis": rca_result.root_cause_hypothesis,
             "recommended_actions": rca_result.recommended_actions,
             "safe_to_autofix": rca_result.safe_to_autofix,
-            "evidence_refs": [ref.s3_uri for ref in rca_result.evidence_refs],
+            "evidence_refs": evidence_refs,
         }
 
     def _investigate_api_failure(self, event: APIFailureEvent) -> dict[str, Any]:
@@ -238,11 +263,20 @@ class CoordinatorAgent:
 
         for action in recommended_actions:
             # Create remediation action for policy evaluation
+            # Safely extract tier value (Tier is an Enum with .value attribute)
+            tier_value = None
+            if event.tier:
+                if hasattr(event.tier, 'value'):
+                    tier_value = event.tier.value
+                else:
+                    # Fallback: convert to string if it's already a string
+                    tier_value = str(event.tier)
+            
             remediation_action = RemediationAction(
                 action_type=action.action_type,
                 target=self._extract_target_from_action(action, event),
                 parameters=action.parameters,
-                tier=event.tier.value if event.tier else None,
+                tier=tier_value,
                 context={
                     "event_type": event.event_type.value,
                     "classification": investigation_result.get("classification"),
@@ -268,12 +302,12 @@ class CoordinatorAgent:
             if decision.allowed:
                 allowed_actions.append(action_dict)
                 logger.info(
-                    f"Action allowed by policy: {action.action_type} - {decision.reason}"
+                    "Action allowed by policy: %s - %s", action.action_type, decision.reason
                 )
             else:
                 blocked_actions.append(action_dict)
                 logger.warning(
-                    f"Action blocked by policy: {action.action_type} - {decision.reason}"
+                    "Action blocked by policy: %s - %s", action.action_type, decision.reason
                 )
 
         return allowed_actions, blocked_actions
@@ -355,7 +389,7 @@ class CoordinatorAgent:
         """
         if isinstance(event, PipelineFailureEvent) and event.execution_arn:
             arn_parts = event.execution_arn.value.split(":")
-            execution_name = arn_parts[-1] if len(arn_parts) > 0 else "unknown"
+            execution_name = arn_parts[-1] if arn_parts else "unknown"
             return f"incident_{execution_name}_{event.timestamp.strftime('%Y%m%d%H%M%S')}"
         else:
             return f"incident_{event.event_id}"
@@ -373,7 +407,7 @@ class CoordinatorAgent:
             decision: Decision packet
             event: Original event
         """
-        logger.info(f"Storing decision packet for incident: {incident_id}")
+        logger.info("Storing decision packet for incident: %s", incident_id)
 
         # Convert DecisionPacket to dictionary for storage
         decision_dict = decision.model_dump()
@@ -402,13 +436,13 @@ class CoordinatorAgent:
         Returns:
             Decision packet
         """
-        logger.info(f"Loading existing decision packet for incident: {incident_id}")
+        logger.info("Loading existing decision packet for incident: %s", incident_id)
 
         # Load from incident store
         decision_dict = self.incident_store.load_decision_packet(incident_id)
 
         if decision_dict is None:
-            logger.warning(f"Decision packet not found for {incident_id}, returning minimal packet")
+            logger.warning("Decision packet not found for %s, returning minimal packet", incident_id)
             # Return a minimal decision packet if not found
             return DecisionPacket(
                 incident_id=incident_id,
@@ -436,7 +470,7 @@ class CoordinatorAgent:
                     decision_dict["created_at"] = datetime.fromisoformat(dt_str)
                 elif isinstance(decision_dict["created_at"], dict):
                     # Handle if stored as dict (shouldn't happen, but be safe)
-                    logger.warning(f"created_at is dict, converting: {decision_dict['created_at']}")
+                    logger.warning("created_at is dict, converting: %s", decision_dict['created_at'])
                     decision_dict["created_at"] = datetime.utcnow()
 
             # Handle EventType enum conversion
@@ -444,14 +478,30 @@ class CoordinatorAgent:
                 decision_dict["event_type"] = EventType(decision_dict["event_type"])
 
             return DecisionPacket(**decision_dict)
-        except Exception as e:
-            logger.error(f"Failed to reconstruct DecisionPacket from stored data: {e}", exc_info=True)
-            # Return minimal packet on error
+        except (ValueError, KeyError, TypeError) as e:
+            # Handle expected errors (missing fields, type mismatches, etc.)
+            logger.error("Failed to reconstruct DecisionPacket from stored data: %s", e, exc_info=True)
             return DecisionPacket(
                 incident_id=incident_id,
                 event_type=EventType.PIPELINE_FAILURE,
                 what_happened="Error loading existing decision packet",
                 root_cause={"classification": "UNKNOWN", "confidence": 0.0, "hypothesis": f"Error: {str(e)}"},
+                recommended_actions=[],
+                actions_allowed=[],
+                actions_blocked=[],
+                safe_to_autofix=False,
+                needs_human=[],
+                evidence_refs=[],
+                created_at=datetime.utcnow(),
+            )
+        except Exception as e:
+            # Handle unexpected errors
+            logger.critical("Unexpected error reconstructing DecisionPacket: %s", e, exc_info=True)
+            return DecisionPacket(
+                incident_id=incident_id,
+                event_type=EventType.PIPELINE_FAILURE,
+                what_happened="Unexpected error loading existing decision packet",
+                root_cause={"classification": "UNKNOWN", "confidence": 0.0, "hypothesis": "Unexpected error occurred"},
                 recommended_actions=[],
                 actions_allowed=[],
                 actions_blocked=[],

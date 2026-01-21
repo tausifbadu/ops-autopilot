@@ -1,6 +1,5 @@
 """Pipeline failure workflow - handles Step Functions/Glue/EMR execution failures."""
 
-from typing import Optional
 
 from shared.schemas.events import PipelineFailureEvent
 
@@ -32,8 +31,9 @@ class PipelineFailureWorkflow(Workflow):
             Workflow result with incident ID
         """
         logger.info(
-            f"Processing pipeline failure: execution_arn={event.execution_arn}, "
-            f"state_machine_arn={event.state_machine_arn}"
+            "Processing pipeline failure: execution_arn=%s, state_machine_arn=%s",
+            event.execution_arn,
+            event.state_machine_arn,
         )
 
         try:
@@ -47,15 +47,23 @@ class PipelineFailureWorkflow(Workflow):
             remediation_result = None
             if decision_packet.safe_to_autofix and decision_packet.actions_allowed:
                 logger.info(
-                    f"Safe to autofix: executing {len(decision_packet.actions_allowed)} actions"
+                    "Safe to autofix: executing %d actions", len(decision_packet.actions_allowed)
                 )
 
                 # Extract RecommendedAction objects from allowed actions
                 allowed_actions = []
                 for action_dict in decision_packet.actions_allowed:
-                    if "recommended_action" in action_dict:
-                        allowed_actions.append(action_dict["recommended_action"])
+                    recommended_action = action_dict.get("recommended_action")
+                    if recommended_action is not None:
+                        allowed_actions.append(recommended_action)
 
+                # Extract target for context (prefer execution_arn, fallback to state_machine_arn)
+                target = None
+                if event.execution_arn:
+                    target = event.execution_arn.value
+                elif event.state_machine_arn:
+                    target = event.state_machine_arn.value
+                
                 # Create remediation plan from allowed actions
                 remediation_plan = RemediationPlan(
                     incident_id=incident_id,
@@ -64,7 +72,7 @@ class PipelineFailureWorkflow(Workflow):
                     context={
                         "execution_arn": event.execution_arn.value if event.execution_arn else None,
                         "state_machine_arn": event.state_machine_arn.value if event.state_machine_arn else None,
-                        "target": event.execution_arn.value if event.execution_arn else event.state_machine_arn.value if event.state_machine_arn else None,
+                        "target": target,
                     },
                 )
 
@@ -72,19 +80,21 @@ class PipelineFailureWorkflow(Workflow):
                 remediation_result = self.remediation_agent.execute_remediation(remediation_plan)
 
                 logger.info(
-                    f"Remediation complete: success={remediation_result.success}, "
-                    f"actions_taken={len(remediation_result.actions_taken)}"
+                    "Remediation complete: success=%s, actions_taken=%d",
+                    remediation_result.success,
+                    len(remediation_result.actions_taken),
                 )
             else:
                 logger.info(
-                    f"Not safe to autofix or no actions allowed. "
-                    f"Needs human: {len(decision_packet.needs_human)} items"
+                    "Not safe to autofix or no actions allowed. Needs human: %d items",
+                    len(decision_packet.needs_human),
                 )
 
             logger.info(
-                f"Pipeline failure processed: incident_id={incident_id}, "
-                f"classification={decision_packet.root_cause.get('classification')}, "
-                f"confidence={decision_packet.root_cause.get('confidence')}"
+                "Pipeline failure processed: incident_id=%s, classification=%s, confidence=%s",
+                incident_id,
+                decision_packet.root_cause.get('classification'),
+                decision_packet.root_cause.get('confidence'),
             )
 
             return WorkflowResult(
@@ -94,11 +104,19 @@ class PipelineFailureWorkflow(Workflow):
                 remediation_result=remediation_result,
             )
 
-        except Exception as e:
-            logger.error(f"Error processing pipeline failure: {e}", exc_info=True)
+        except (ValueError, KeyError, AttributeError, TypeError) as e:
+            # Handle expected errors (data validation, missing attributes, etc.)
+            logger.error("Expected error processing pipeline failure: %s", e, exc_info=True)
             incident_id = self._generate_incident_id(event)
             return WorkflowResult(
                 success=False, incident_id=incident_id, reason=f"error: {str(e)}"
+            )
+        except Exception as e:
+            # Handle unexpected errors
+            logger.critical("Unexpected error processing pipeline failure: %s", e, exc_info=True)
+            incident_id = self._generate_incident_id(event)
+            return WorkflowResult(
+                success=False, incident_id=incident_id, reason=f"unexpected_error: {str(e)}"
             )
 
     def _generate_incident_id(self, event: PipelineFailureEvent) -> str:

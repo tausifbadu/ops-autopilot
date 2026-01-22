@@ -175,9 +175,9 @@ class CoordinatorAgent:
         Returns:
             Investigation result dictionary
         """
-        if event.event_type == EventType.PIPELINE_FAILURE:
+        if isinstance(event, PipelineFailureEvent):
             return self._investigate_pipeline_failure(event)
-        elif event.event_type == EventType.API_FAILURE:
+        elif isinstance(event, APIFailureEvent):
             return self._investigate_api_failure(event)
         else:
             logger.warning("Unknown event type: %s", event.event_type)
@@ -205,14 +205,10 @@ class CoordinatorAgent:
         logger.info("Activating Pipeline RCA Agent")
         rca_result: PipelineIncidentAnalysis = self.pipeline_rca_agent.investigate(event)
 
-        # Safely extract evidence refs (handle cases where ref might not have s3_uri)
+        # Extract evidence refs as S3 URIs
         evidence_refs = []
         for ref in rca_result.evidence_refs:
-            if hasattr(ref, 's3_uri'):
-                evidence_refs.append(ref.s3_uri)
-            else:
-                # Fallback: convert to string representation
-                evidence_refs.append(str(ref))
+            evidence_refs.append(ref.to_uri())
         
         return {
             "what_happened": f"Pipeline failure: {event.execution_arn}",

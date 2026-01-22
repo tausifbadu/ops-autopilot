@@ -1,0 +1,19 @@
+{
+  "include": [
+    "agent-host/src",
+    "shared/src",
+    "mcp-servers"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.venv",
+    "**/venv"
+  ],
+  "extraPaths": [
+    "shared/src",
+    "agent-host/src"
+  ],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic"
+}

@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: ops-autopilot-agent-host
+Version: 0.1.0
+Summary: Agent Host for ops-autopilot - orchestrates workflows and agents
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: boto3>=1.28.0
+Requires-Dist: ops-autopilot-shared
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"

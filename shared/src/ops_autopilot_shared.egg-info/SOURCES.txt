@@ -1,0 +1,7 @@
+pyproject.toml
+src/ops_autopilot_shared.egg-info/PKG-INFO
+src/ops_autopilot_shared.egg-info/SOURCES.txt
+src/ops_autopilot_shared.egg-info/dependency_links.txt
+src/ops_autopilot_shared.egg-info/requires.txt
+src/ops_autopilot_shared.egg-info/top_level.txt
+src/shared/__init__.py

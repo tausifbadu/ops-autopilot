@@ -28,7 +28,7 @@
 │                          │   SQS Queues        │                                  │
 │                          │  ┌──────────────┐  │                                  │
 │                          │  │ incidents     │  │                                  │
-│                          │  │ dq_checks     │  │                                  │
+│                          │  │ dq_checks     │  │                                  │   
 │                          │  │ cost_scan     │  │                                  │
 │                          │  │ daily_sweep   │  │                                  │
 │                          │  └──────────────┘  │                                  │

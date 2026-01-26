@@ -468,8 +468,14 @@ class PolicyEngine:
         allowlist = self.allowlists.get(tier_key, {})
 
         # Check state machines
-        state_machines = allowlist.get("state_machines", [])
-        if any(target.startswith(sm) or sm in target for sm in state_machines):
+        state_machines = allowlist.get("state_machines")
+        if state_machines is None:
+            state_machines = []
+        elif not isinstance(state_machines, list):
+            logger.warning(f"state_machines in allowlist is not a list: {type(state_machines)}")
+            state_machines = []
+        
+        if state_machines and any(target.startswith(sm) or sm in target for sm in state_machines):
             return True
 
         # Check services
@@ -494,15 +500,29 @@ class PolicyEngine:
             True if in deny list
         """
         deny_list = self.allowlists.get("deny_list", {})
+        if deny_list is None:
+            deny_list = {}
 
         # Check state machines
-        state_machines = deny_list.get("state_machines", [])
-        if any(target.startswith(sm) or sm in target for sm in state_machines):
+        state_machines = deny_list.get("state_machines")
+        if state_machines is None:
+            state_machines = []
+        elif not isinstance(state_machines, list):
+            logger.warning(f"state_machines in deny_list is not a list: {type(state_machines)}")
+            state_machines = []
+        
+        if state_machines and any(target.startswith(sm) or sm in target for sm in state_machines):
             return True
 
         # Check services
-        services = deny_list.get("services", [])
-        if target in services or any(svc in target for svc in services):
+        services = deny_list.get("services")
+        if services is None:
+            services = []
+        elif not isinstance(services, list):
+            logger.warning(f"services in deny_list is not a list: {type(services)}")
+            services = []
+        
+        if services and (target in services or any(svc in target for svc in services)):
             return True
 
         return False

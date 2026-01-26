@@ -88,7 +88,8 @@ class CoordinatorAgent:
             investigation_result = self._investigate(event)
 
             # Step 3: Extract recommended actions
-            recommended_actions = investigation_result.get("recommended_actions", [])
+            recommended_actions_raw = investigation_result.get("recommended_actions")
+            recommended_actions = recommended_actions_raw if recommended_actions_raw is not None else []
 
             # Step 4: Apply policy to each action
             actions_allowed, actions_blocked = self._apply_policy(
@@ -115,8 +116,8 @@ class CoordinatorAgent:
                 actions_allowed=actions_allowed,
                 actions_blocked=actions_blocked,
                 safe_to_autofix=safe_to_autofix,
-                needs_human=self._determine_human_needs(actions_blocked, investigation_result),
-                evidence_refs=investigation_result.get("evidence_refs", []),
+                needs_human=self._determine_human_needs(actions_blocked or [], investigation_result),
+                evidence_refs=investigation_result.get("evidence_refs") or [],
                 created_at=datetime.utcnow(),
             )
 
@@ -207,8 +208,10 @@ class CoordinatorAgent:
 
         # Extract evidence refs as S3 URIs
         evidence_refs = []
-        for ref in rca_result.evidence_refs:
-            evidence_refs.append(ref.to_uri())
+        if rca_result.evidence_refs is not None:
+            for ref in rca_result.evidence_refs:
+                if ref is not None:
+                    evidence_refs.append(ref.to_uri())
         
         return {
             "what_happened": f"Pipeline failure: {event.execution_arn}",
@@ -259,7 +262,16 @@ class CoordinatorAgent:
         allowed_actions = []
         blocked_actions = []
 
+        # Ensure recommended_actions is a list, not None
+        if recommended_actions is None:
+            logger.warning("recommended_actions is None, using empty list")
+            recommended_actions = []
+
         for action in recommended_actions:
+            # Skip None actions
+            if action is None:
+                logger.warning("Skipping None action in recommended_actions")
+                continue
             # Create remediation action for policy evaluation
             # Safely extract tier value (Tier is an Enum with .value attribute)
             tier_value = None
@@ -270,10 +282,14 @@ class CoordinatorAgent:
                     # Fallback: convert to string if it's already a string
                     tier_value = str(event.tier)
             
+            # Safely extract action attributes
+            action_type = action.action_type if action.action_type else "unknown"
+            action_parameters = action.parameters if action.parameters is not None else {}
+            
             remediation_action = RemediationAction(
-                action_type=action.action_type,
+                action_type=action_type,
                 target=self._extract_target_from_action(action, event),
-                parameters=action.parameters,
+                parameters=action_parameters,
                 tier=tier_value,
                 context={
                     "event_type": event.event_type.value,
@@ -286,9 +302,9 @@ class CoordinatorAgent:
             decision: PolicyDecision = self.policy_engine.evaluate_action(remediation_action)
 
             action_dict = {
-                "action_type": action.action_type,
-                "description": action.description,
-                "parameters": action.parameters,
+                "action_type": action_type,
+                "description": action.description if action.description else "",
+                "parameters": action_parameters,
                 "recommended_action": action,  # Keep original action for remediation agent
                 "policy_decision": {
                     "allowed": decision.allowed,
@@ -353,8 +369,15 @@ class CoordinatorAgent:
         """
         needs = []
 
+        # Ensure blocked_actions is a list, not None
+        if blocked_actions is None:
+            blocked_actions = []
+
         # Add blocked actions that require approval
         for action in blocked_actions:
+            # Skip None actions
+            if action is None:
+                continue
             if action.get("policy_decision", {}).get("requires_approval", False):
                 needs.append({
                     "reason": "policy_blocked",

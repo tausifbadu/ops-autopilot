@@ -35,11 +35,10 @@ class Config(BaseModel):
         None, description="Data quality MCP server URL"
     )
     mcp_finops_url: Optional[str] = Field(None, description="FinOps MCP server URL")
-    mcp_devtools_url: Optional[str] = Field(None, description="DevTools MCP server URL")
-    mcp_chatops_url: Optional[str] = Field(None, description="ChatOps MCP server URL")
     mcp_devtools_url: Optional[str] = Field(
         None, description="DevTools/GitHub MCP server URL"
     )
+    mcp_chatops_url: Optional[str] = Field(None, description="ChatOps MCP server URL")
     
     # SQS Configuration (AWS mode)
     sqs_queue_incidents: Optional[str] = Field(
@@ -153,9 +152,6 @@ class Config(BaseModel):
                 mcp_chatops_url=os.getenv(
                     "MCP_CHATOPS_URL", "http://mcp-chatops:8008"
                 ),
-                mcp_devtools_url=os.getenv(
-                    "MCP_DEVTOOLS_URL", "http://mcp-devtools-github:8007"
-                ),
                 # SQS queues
                 sqs_queue_incidents=os.getenv("SQS_QUEUE_INCIDENTS"),
                 sqs_queue_dq=os.getenv("SQS_QUEUE_DQ"),
@@ -203,7 +199,6 @@ class Config(BaseModel):
                     "MCP_DEVTOOLS_URL", "http://localhost:8007"
                 ),
                 mcp_chatops_url=os.getenv("MCP_CHATOPS_URL", "http://localhost:8008"),
-                mcp_devtools_url=os.getenv("MCP_DEVTOOLS_URL", "http://localhost:8007"),
                 # Local storage
                 local_evidence_dir=os.getenv("LOCAL_EVIDENCE_DIR", "./evidence"),
                 local_mode=True,

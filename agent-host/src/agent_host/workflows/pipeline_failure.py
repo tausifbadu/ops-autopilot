@@ -52,7 +52,9 @@ class PipelineFailureWorkflow(Workflow):
 
                 # Extract RecommendedAction objects from allowed actions
                 allowed_actions = []
-                for action_dict in decision_packet.actions_allowed:
+                # Ensure actions_allowed is a list, not None
+                actions_allowed_list = decision_packet.actions_allowed if decision_packet.actions_allowed is not None else []
+                for action_dict in actions_allowed_list:
                     recommended_action = action_dict.get("recommended_action")
                     if recommended_action is not None:
                         allowed_actions.append(recommended_action)

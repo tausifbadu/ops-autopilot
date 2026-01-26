@@ -202,15 +202,51 @@ class PipelineRCAAgent:
             )
 
             # Map to PipelineIncidentAnalysis
-            classification = FailureClassification(result["classification"])
-            confidence = Confidence(value=float(result["confidence"]))
-            root_cause = result["root_cause_hypothesis"]
-            recommended_actions = [
-                RecommendedAction(action_type=action, description=action)
-                for action in result.get("recommended_actions", [])
-            ]
+            # Safely extract values with None checks
+            if not result:
+                raise ValueError("LLM returned empty result")
+            
+            classification = FailureClassification(result.get("classification", "UNKNOWN"))
+            confidence = Confidence(value=float(result.get("confidence", 0.5)))
+            root_cause = result.get("root_cause_hypothesis", "Unknown root cause")
+            
+            # Handle recommended_actions - ensure it's a list, not None
+            recommended_actions_raw = result.get("recommended_actions")
+            if recommended_actions_raw is None:
+                recommended_actions_raw = []
+            elif not isinstance(recommended_actions_raw, list):
+                logger.warning(f"recommended_actions is not a list: {type(recommended_actions_raw)}")
+                recommended_actions_raw = []
+            
+            recommended_actions = []
+            for action in recommended_actions_raw:
+                if action is not None:
+                    # Handle both string and dict action formats
+                    if isinstance(action, str):
+                        recommended_actions.append(
+                            RecommendedAction(action_type=action, description=action)
+                        )
+                    elif isinstance(action, dict):
+                        recommended_actions.append(
+                            RecommendedAction(
+                                action_type=action.get("action_type", "unknown"),
+                                description=action.get("description", "")
+                            )
+                        )
+                    else:
+                        logger.warning(f"Skipping invalid action type: {type(action)}")
+            
             safe_to_autofix = result.get("safe_to_autofix", False)
-            evidence_gaps = result.get("evidence_gaps", [])
+            
+            # Handle evidence_gaps - ensure it's a list, not None
+            evidence_gaps_raw = result.get("evidence_gaps")
+            if evidence_gaps_raw is None:
+                evidence_gaps_raw = []
+            elif not isinstance(evidence_gaps_raw, list):
+                logger.warning(f"evidence_gaps is not a list: {type(evidence_gaps_raw)}")
+                evidence_gaps_raw = []
+            
+            evidence_gaps = evidence_gaps_raw
 
             logger.info(
                 f"LLM RCA generated: classification={classification}, "
@@ -408,17 +444,28 @@ Provide structured analysis with classification, confidence, root cause, and rec
             }
 
             # Search for relevant code files based on error fingerprints
+            if error_fingerprints is None:
+                error_fingerprints = []
             for fingerprint in error_fingerprints[:3]:  # Limit to top 3 searches
+                if fingerprint is None:
+                    continue
                 try:
                     search_results = self.github_client.search_code(
                         query=f"{fingerprint}",
                         repository=repository,
                     )
                     if search_results:
+                        # Safely extract file paths
+                        files = []
+                        for r in search_results[:5]:
+                            if r is not None:
+                                file_path = r.get("path", "") if isinstance(r, dict) else str(r)
+                                if file_path:
+                                    files.append(file_path)
                         code_analysis["searches"].append({
                             "query": fingerprint,
                             "results_count": len(search_results),
-                            "files": [r.get("path", "") for r in search_results[:5]],
+                            "files": files,
                         })
                         logger.info(f"Found {len(search_results)} files matching '{fingerprint}'")
                 except Exception as e:
@@ -439,8 +486,14 @@ Provide structured analysis with classification, confidence, root cause, and rec
                 logger.warning(f"Failed to get recent commits: {e}")
 
             # Analyze top search results
-            for search in code_analysis["searches"]:
-                for file_path in search.get("files", [])[:3]:  # Analyze top 3 files per search
+            searches = code_analysis.get("searches", [])
+            if searches is None:
+                searches = []
+            for search in searches:
+                files = search.get("files", [])
+                if files is None:
+                    files = []
+                for file_path in files[:3]:  # Analyze top 3 files per search
                     try:
                         # Read file content
                         file_content = self.github_client.read_file(
@@ -509,7 +562,10 @@ Provide structured analysis with classification, confidence, root cause, and rec
 
         # Extract from execution history
         if evidence.execution_history and evidence.execution_history.events:
-            for event_item in evidence.execution_history.events:
+            events = evidence.execution_history.events
+            if events is None:
+                events = []
+            for event_item in events:
                 if isinstance(event_item, dict):
                     error_msg = event_item.get("executionFailedEventDetails", {}).get("error", "")
                     if error_msg:

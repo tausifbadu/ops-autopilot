@@ -44,7 +44,9 @@ class StepFunctionsClient:
             endpoint_url: AWS endpoint URL for local testing
         """
         self.default_region = default_region or config.aws_region
-        self.endpoint_url = endpoint_url or config.aws_endpoint_url
+        # Use provided endpoint_url, or from config, but convert empty string to None
+        endpoint = endpoint_url or config.aws_endpoint_url
+        self.endpoint_url = endpoint if endpoint and endpoint.strip() else None
         self._clients: dict[str, Any] = {}  # Cache clients per region
         
         logger.info(f"Initialized Step Functions client manager (default region: {self.default_region})")

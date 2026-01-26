@@ -23,13 +23,19 @@ class CloudWatchMetricsClient:
             endpoint_url: AWS endpoint URL (for local testing)
         """
         self.region = region or config.aws_region
-        self.endpoint_url = endpoint_url or config.aws_endpoint_url
+        # Use provided endpoint_url, or from config, but convert empty string to None
+        endpoint = endpoint_url or config.aws_endpoint_url
+        self.endpoint_url = endpoint if endpoint and endpoint.strip() else None
         
-        self.client = boto3.client(
-            "cloudwatch",
-            region_name=self.region,
-            endpoint_url=self.endpoint_url,
-        )
+        # Only pass endpoint_url if it's not None (boto3 doesn't accept empty strings)
+        client_kwargs = {
+            "service_name": "cloudwatch",
+            "region_name": self.region,
+        }
+        if self.endpoint_url:
+            client_kwargs["endpoint_url"] = self.endpoint_url
+        
+        self.client = boto3.client(**client_kwargs)
         logger.info(f"Initialized CloudWatch Metrics client for region: {self.region}")
 
     def get_metric_statistics(

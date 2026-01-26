@@ -36,11 +36,16 @@ class Config(BaseModel):
     @classmethod
     def from_env(cls) -> "Config":
         """Load configuration from environment variables."""
+        # Convert empty string to None for endpoint_url (boto3 doesn't accept empty strings)
+        endpoint_url = os.getenv("AWS_ENDPOINT_URL")
+        if endpoint_url and not endpoint_url.strip():
+            endpoint_url = None
+        
         return cls(
             host=os.getenv("HOST", "0.0.0.0"),
             port=int(os.getenv("PORT", "8001")),
             aws_region=os.getenv("AWS_REGION", "us-east-1"),
-            aws_endpoint_url=os.getenv("AWS_ENDPOINT_URL"),
+            aws_endpoint_url=endpoint_url,
             allowlist_enabled=os.getenv("ALLOWLIST_ENABLED", "true").lower() == "true",
             allowlist_file=os.getenv("ALLOWLIST_FILE"),
             log_level=os.getenv("LOG_LEVEL", "INFO"),

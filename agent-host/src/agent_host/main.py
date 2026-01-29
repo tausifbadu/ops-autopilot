@@ -5,11 +5,10 @@ import json
 import sys
 from pathlib import Path
 
-from shared.schemas.events import APIFailureEvent, Event, PipelineFailureEvent
-
 from agent_host.config import config
 from agent_host.dispatcher import Dispatcher
 from agent_host.logging import get_logger
+from shared.schemas.events import APIFailureEvent, PipelineFailureEvent
 
 logger = get_logger(__name__)
 

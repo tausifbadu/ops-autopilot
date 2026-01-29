@@ -150,13 +150,11 @@ resource "aws_ecs_service" "this" {
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = var.security_group_ids
-    assign_public_ip = false  # Use NAT Gateway for internet access
+    assign_public_ip = true  # Public subnets, no NAT; needed for ECR pull / AWS APIs
   }
 
-  deployment_configuration {
-    maximum_percent         = 200
-    minimum_healthy_percent = 100
-  }
+  deployment_maximum_percent         = 200
+  deployment_minimum_healthy_percent = 100
 
   health_check_grace_period_seconds = 60
 

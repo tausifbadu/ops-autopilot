@@ -22,21 +22,21 @@ variable "vpc_cidr" {
 }
 
 variable "agent_host_cpu" {
-  description = "CPU units for Agent Host (1024 = 1 vCPU)"
+  description = "CPU units for Agent Host (1024 = 1 vCPU). 256 = 0.25 vCPU (Fargate minimum)."
   type        = number
-  default     = 2048  # 2 vCPU
+  default     = 256  # 0.25 vCPU (Fargate minimum; cost-optimized)
 }
 
 variable "agent_host_memory" {
-  description = "Memory for Agent Host in MB"
+  description = "Memory for Agent Host in MB. Must be valid Fargate pair with cpu (256 cpu = 512 MB only)."
   type        = number
-  default     = 4096  # 4 GB
+  default     = 512  # 0.5 GB (Fargate minimum; cost-optimized)
 }
 
 variable "agent_host_desired_count" {
-  description = "Desired number of Agent Host tasks"
+  description = "Desired number of Agent Host tasks. 1 = lower cost; 2+ for HA."
   type        = number
-  default     = 2
+  default     = 1  # cost-optimized (was 2)
 }
 
 variable "mcp_server_desired_count" {
@@ -46,9 +46,9 @@ variable "mcp_server_desired_count" {
 }
 
 variable "log_retention_days" {
-  description = "CloudWatch log retention in days"
+  description = "CloudWatch log retention in days. Lower = less storage cost."
   type        = number
-  default     = 30
+  default     = 14  # cost-optimized (was 30)
 }
 
 variable "llm_provider" {
@@ -60,12 +60,6 @@ variable "llm_provider" {
     condition     = contains(["bedrock", "openai", "anthropic", "gemini"], var.llm_provider)
     error_message = "LLM provider must be bedrock, openai, anthropic, or gemini"
   }
-}
-
-variable "enable_alb" {
-  description = "Enable Application Load Balancer for MCP servers"
-  type        = bool
-  default     = false  # Set to true if you want external access to MCP servers
 }
 
 variable "tags" {

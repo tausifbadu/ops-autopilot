@@ -14,7 +14,8 @@ variable "region" {
 }
 
 variable "sqs_queue_urls" {
-  type = map(string)
+  type    = map(string)
+  default = {}
 }
 
 variable "dynamodb_tables" {
@@ -43,7 +44,7 @@ variable "s3_evidence_region" {
 # ECS Execution Role (for pulling images, writing logs)
 resource "aws_iam_role" "ecs_execution" {
   name = "${var.environment}-ops-autopilot-ecs-execution"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -53,6 +54,42 @@ resource "aws_iam_role" "ecs_execution" {
         Service = "ecs-tasks.amazonaws.com"
       }
     }]
+  })
+}
+
+# ECS Execution Role Policy: ECR pull + CloudWatch Logs
+resource "aws_iam_role_policy" "ecs_execution" {
+  name = "${var.environment}-ops-autopilot-ecs-execution-policy"
+  role = aws_iam_role.ecs_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ]
+        Resource = "arn:aws:ecr:${var.region}:${var.account_id}:repository/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:${var.region}:${var.account_id}:log-group:/ecs/${var.environment}/*:*"
+      }
+    ]
   })
 }
 
@@ -76,13 +113,9 @@ resource "aws_iam_role" "agent_host_task" {
 resource "aws_iam_role" "mcp_server_tasks" {
   for_each = toset([
     "orchestration-sfn",
-    "observability-cloudwatch",
     "data-execution-glue-emr",
-    "runtime-ecs",
-    "data-quality-athena",
-    "finops",
+    "observability-cloudwatch",
     "devtools-github",
-    "chatops",
   ])
   
   name = "${var.environment}-ops-autopilot-mcp-${each.key}-task"
@@ -115,8 +148,8 @@ resource "aws_iam_role_policy" "agent_host_task" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
-      # Regional SQS permissions
-      [
+      # SQS permissions (only if queues are provided)
+      length(var.sqs_queue_urls) > 0 ? [
         {
           Effect = "Allow"
           Action = [
@@ -126,7 +159,7 @@ resource "aws_iam_role_policy" "agent_host_task" {
           ]
           Resource = [for url in values(var.sqs_queue_urls) : url]
         }
-      ],
+      ] : [],
       # DynamoDB permissions (global or regional)
       var.enable_global_resources ? [
         {
@@ -223,14 +256,6 @@ resource "aws_iam_role_policy" "agent_host_task" {
 
 # MCP Server Task Role Policies (placeholder - add specific permissions per server)
 # For now, they inherit basic ECS permissions
-
-output "ecs_execution_role_arn" {
-  value = aws_iam_role.ecs_execution.arn
-}
-
-output "agent_host_task_role_arn" {
-  value = aws_iam_role.agent_host_task.arn
-}
 
 output "mcp_server_task_role_arns" {
   value = { for k, v in aws_iam_role.mcp_server_tasks : k => v.arn }

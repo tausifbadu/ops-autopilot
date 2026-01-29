@@ -1,9 +1,18 @@
 """Configuration for Agent Host - supports both local and AWS environments."""
 
 import os
+from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+
+# Load .env from project root (works when run from repo root or agent-host/)
+_load_env_path = Path(__file__).resolve().parents[3] / ".env"
+if _load_env_path.exists():
+    load_dotenv(_load_env_path)
+else:
+    load_dotenv()  # fallback: cwd and parents
 
 
 class Config(BaseModel):

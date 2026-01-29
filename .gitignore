@@ -15,3 +15,11 @@ build/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars.json

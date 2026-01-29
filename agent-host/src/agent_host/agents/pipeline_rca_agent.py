@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from typing import Optional
+from typing import Any, Optional
 
 from shared.schemas.common import Confidence
 from shared.schemas.events import PipelineFailureEvent

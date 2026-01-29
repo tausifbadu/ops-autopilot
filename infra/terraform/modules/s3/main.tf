@@ -27,7 +27,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "evidence" {
   rule {
     id     = "delete-old-evidence"
     status = "Enabled"
-    
+
+    filter {}
+
     expiration {
       days = 90
     }

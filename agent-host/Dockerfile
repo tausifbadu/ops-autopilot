@@ -1,4 +1,4 @@
-# Dockerfile for Agent Host (optional, for containerized deployment)
+# Dockerfile for Agent Host. Build from repo root: docker build -f agent-host/Dockerfile -t <image> .
 
 FROM python:3.11-slim
 
@@ -10,19 +10,18 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
-COPY pyproject.toml ./
+# Copy shared package then agent-host (needs shared)
+COPY shared/ ./shared/
+COPY agent-host/ ./agent-host/
 
-# Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir httpx pydantic boto3
+    pip install --no-cache-dir ./shared && \
+    pip install --no-cache-dir ./agent-host
 
-# Copy application code
-COPY src/ ./src/
+# Ensure Python finds shared package (fallback if site-packages path differs in runtime)
+ENV PYTHONPATH=/app/shared/src
 
-# Set working directory
-WORKDIR /app/src
+WORKDIR /app/agent-host/src
 
-# For ECS Fargate production deployment
-# CMD will be set in ECS task definition or via environment variable
-# CMD ["python", "-m", "agent_host.main"]
+# ECS runs this; port/env come from task definition
+CMD ["python", "-m", "agent_host.main", "--sqs"]

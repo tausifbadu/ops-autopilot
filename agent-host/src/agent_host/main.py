@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from shared.schemas.events import Event, PipelineFailureEvent
+from shared.schemas.events import APIFailureEvent, Event, PipelineFailureEvent
 
 from agent_host.config import config
 from agent_host.dispatcher import Dispatcher
@@ -36,6 +36,8 @@ def process_local_event(event_file: str):
     
     if event_type == "PIPELINE_FAILURE":
         event = PipelineFailureEvent(**event_data)
+    elif event_type == "API_FAILURE":
+        event = APIFailureEvent(**event_data)
     else:
         logger.error(f"Unsupported event type for local processing: {event_type}")
         sys.exit(1)
@@ -109,6 +111,8 @@ def process_sqs_messages():
                     # Create event object
                     if event_type == "PIPELINE_FAILURE":
                         event = PipelineFailureEvent(**event_data)
+                    elif event_type == "API_FAILURE":
+                        event = APIFailureEvent(**event_data)
                     else:
                         logger.warning(f"Unsupported event type: {event_type}")
                         continue

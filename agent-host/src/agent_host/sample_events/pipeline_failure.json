@@ -10,5 +10,5 @@
   "error_message": "Execution timed out after 300 seconds",
   "tier": "nonprod",
   "source": "EventBridge",
-  "timestamp": "2024-01-15T10:30:00Z"
+  "timestamp": "2024-01-15T10:30:10Z"
 }

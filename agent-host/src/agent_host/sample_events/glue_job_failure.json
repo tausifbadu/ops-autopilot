@@ -1,0 +1,10 @@
+{
+  "event_type": "PIPELINE_FAILURE",
+  "source": "EventBridge",
+  "timestamp": "2024-01-15T14:30:00Z",
+  "glue_job_name": "my-etl-job",
+  "glue_job_run_id": "jr_abc123def456",
+  "failure_cause": "JobRunFailed",
+  "error_message": "Job failed with exit code 1. Check CloudWatch logs for details.",
+  "tier": "nonprod"
+}

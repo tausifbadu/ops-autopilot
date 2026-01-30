@@ -263,11 +263,23 @@ module "alb" {
   mcp_services = module.mcp_servers
 }
 
-# EventBridge Rules (regional)
+# Pipeline event transformer: EventBridge → Lambda → SQS (required)
+module "pipeline_event_transformer" {
+  source = "../../modules/pipeline-event-transformer"
+
+  environment        = var.environment
+  lambda_source_path = "${path.root}/../../lambda/pipeline-event-transformer"
+  sqs_queue_url      = module.sqs.queue_urls["incidents"]
+  sqs_queue_arn      = module.sqs.queue_arns["incidents"]
+  default_tier       = var.environment == "prod" ? "prod" : "nonprod"
+}
+
+# EventBridge Rules (regional): Glue failure → Lambda → SQS
 module "eventbridge" {
   source = "../../modules/eventbridge"
-  
-  environment     = var.environment
-  sqs_queue_urls  = module.sqs.queue_urls
-  region          = var.aws_region
+
+  environment          = var.environment
+  region               = var.aws_region
+  lambda_function_arn  = module.pipeline_event_transformer.function_arn
+  lambda_function_name = module.pipeline_event_transformer.function_name
 }

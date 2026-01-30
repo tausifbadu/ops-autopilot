@@ -54,12 +54,12 @@ module "dynamodb" {
   environment = var.environment
 }
 
-# SQS Queues - COMMENTED OUT (uncomment to recreate; agent-host needs queue URL in ECS mode)
-# module "sqs" {
-#   source = "./modules/sqs"
-#
-#   environment = var.environment
-# }
+
+module "sqs" {
+   source = "./modules/sqs"
+
+   environment = var.environment
+}
 
 # ECR Repositories: agent-host + 4 MCP servers only
 module "ecr" {
@@ -83,9 +83,44 @@ module "iam" {
   environment     = var.environment
   account_id      = data.aws_caller_identity.current.account_id
   region          = data.aws_region.current.name
-  sqs_queue_urls  = {}  # SQS module commented out
+  sqs_queue_urls  = {}  # SQS module commented out; set to module.sqs.queue_urls when SQS is enabled
   dynamodb_tables = module.dynamodb.table_names
   s3_buckets      = module.s3.bucket_names
+}
+
+# ---------------------------------------------------------------------------
+# Pipeline failure: Glue -> EventBridge -> Lambda -> SQS + test Glue job
+# Lambda transforms Glue/EMR failure events to PipelineFailureEvent JSON and sends to SQS.
+# Glue test job fails on purpose so you can verify the pipeline in AWS.
+# ---------------------------------------------------------------------------
+
+# Glue test job (no SQS required): run in AWS Glue to trigger a failure event
+module "glue_test_job" {
+  source = "./modules/glue-test-job"
+
+  environment        = var.environment
+  script_bucket_name = module.s3.bucket_names["scripts"]
+  script_key         = "glue-scripts/ops-autopilot-fail-for-test.py"
+  script_source_path = "${path.root}/glue-scripts/ops-autopilot-fail-for-test.py"
+}
+
+
+module "pipeline_event_transformer" {
+   source = "./modules/pipeline-event-transformer"
+
+   environment        = var.environment
+   lambda_source_path  = "${path.root}/lambda/pipeline-event-transformer"
+   sqs_queue_url       = module.sqs.queue_urls["incidents"]
+   sqs_queue_arn      = module.sqs.queue_arns["incidents"]
+   default_tier        = var.environment == "prod" ? "prod" : "nonprod"
+}
+
+ module "eventbridge" {
+   source = "./modules/eventbridge"
+
+   environment          = var.environment
+   lambda_function_arn  = module.pipeline_event_transformer.function_arn
+   lambda_function_name = module.pipeline_event_transformer.function_name
 }
 
 # ---------------------------------------------------------------------------

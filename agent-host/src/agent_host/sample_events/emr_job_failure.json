@@ -1,0 +1,10 @@
+{
+  "event_type": "PIPELINE_FAILURE",
+  "source": "EventBridge",
+  "timestamp": "2024-01-15T14:30:00Z",
+  "emr_cluster_id": "j-ABC123DEF456",
+  "emr_step_id": "s-STEP789XYZ",
+  "failure_cause": "StepFailed",
+  "error_message": "EMR step failed. Container exit code: 1.",
+  "tier": "nonprod"
+}

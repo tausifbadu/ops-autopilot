@@ -66,3 +66,13 @@ output "queue_urls" {
     daily_sweep = aws_sqs_queue.daily_sweep.url
   }
 }
+
+output "queue_arns" {
+  description = "ARNs of SQS queues (for EventBridge targets, IAM, etc.)"
+  value = {
+    incidents  = aws_sqs_queue.incidents.arn
+    dq_checks  = aws_sqs_queue.dq_checks.arn
+    cost_scan  = aws_sqs_queue.cost_scan.arn
+    daily_sweep = aws_sqs_queue.daily_sweep.arn
+  }
+}

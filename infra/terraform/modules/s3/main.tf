@@ -46,8 +46,48 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "evidence" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Scripts bucket: Lambda, Glue, EMR, etc. (deploy-time scripts, not evidence)
+# ---------------------------------------------------------------------------
+resource "aws_s3_bucket" "scripts" {
+  bucket = "${var.environment}-ops-autopilot-scripts"
+
+  tags = {
+    Name        = "${var.environment}-scripts-bucket"
+    Environment = var.environment
+  }
+}
+
+resource "aws_s3_bucket_versioning" "scripts" {
+  bucket = aws_s3_bucket.scripts.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "scripts" {
+  bucket = aws_s3_bucket.scripts.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "scripts" {
+  bucket = aws_s3_bucket.scripts.id
+
+  block_public_acls       = true
+  block_public_policy      = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 output "bucket_names" {
   value = {
     evidence = aws_s3_bucket.evidence.bucket
+    scripts  = aws_s3_bucket.scripts.bucket
   }
 }

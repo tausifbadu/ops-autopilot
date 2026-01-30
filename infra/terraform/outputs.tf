@@ -16,10 +16,10 @@
 #   value       = { for k, v in module.mcp_servers : k => v.service_name }
 # }
 
-# output "sqs_queue_urls" {
-#   description = "SQS queue URLs"
-#   value       = module.sqs.queue_urls
-# }
+output "sqs_queue_urls" {
+   description = "SQS queue URLs"
+   value       = module.sqs.queue_urls
+}
 
 output "dynamodb_table_names" {
   description = "DynamoDB table names"
@@ -39,4 +39,9 @@ output "ecr_repository_uris" {
 output "vpc_id" {
   description = "VPC ID"
   value       = module.vpc.vpc_id
+}
+
+output "glue_test_job_name" {
+  description = "Glue test job name (run with: aws glue start-job-run --job-name <this value>)"
+  value       = module.glue_test_job.job_name
 }

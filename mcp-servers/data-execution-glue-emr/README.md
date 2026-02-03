@@ -283,6 +283,10 @@ Get CloudWatch log groups associated with an EMR cluster.
 | `HOST` | Server host | `0.0.0.0` |
 | `PORT` | Server port | `8003` |
 | `AWS_REGION` | Default AWS region | `us-east-1` |
+| `AWS_ACCESS_KEY_ID` | AWS access key (use keys directly, e.g. in Docker) | from env |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key | from env |
+| `AWS_SESSION_TOKEN` | AWS session token (optional, for temporary creds) | from env |
+| `AWS_PROFILE` | AWS profile name (alternative to keys) | from env |
 | `AWS_ENDPOINT_URL` | AWS endpoint URL (for local testing) | `None` |
 | `ALLOWLIST_ENABLED` | Enable resource allowlist | `true` |
 | `ALLOWLIST_FILE` | Path to allowlist file | `None` |
@@ -290,10 +294,12 @@ Get CloudWatch log groups associated with an EMR cluster.
 
 ### AWS Credentials
 
-The server uses standard AWS credential chain:
-1. Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
-2. AWS credentials file (`~/.aws/credentials`)
-3. IAM role (when running on ECS/EC2)
+This server is a **separate process** from the agent-host. It must have AWS credentials in **its own** environment; otherwise you will see `Tool call failed: Unable to locate credentials`.
+
+- **Access keys (recommended for Docker):** Set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and (for temporary creds) `AWS_SESSION_TOKEN`. In Docker Compose these are passed from your environment or `.env`. Ensure keys are not expired.
+- **Profile:** Set `AWS_PROFILE` and run `aws sso login` (so the default profile’s SSO cache is used). If you use a named profile: set `AWS_PROFILE=<your-profile>` in that terminal and run `aws sso login --profile <your-profile>` before starting the server. Do not export `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` (stale tokens cause `ExpiredToken`); the server prefers the default credential chain when `AWS_PROFILE` is not set.
+
+Credential chain: env vars → `~/.aws/credentials` → `~/.aws/config` (SSO) → IAM role (ECS/EC2).
 
 ### Required IAM Permissions
 
@@ -346,13 +352,19 @@ allowlist.add_emr_cluster("j-ABC123DEF456")
 
 ### Using Docker Compose
 
-```bash
-# Start the server
-docker-compose up data-execution-glue-emr
+The container needs AWS credentials. Use **access keys** (passed as env) or **profile** (mounted `~/.aws`).
 
-# Or in detached mode
+**Option A – Access keys (recommended)**  
+Set in `.env` or export before `up`:
+```bash
+export AWS_ACCESS_KEY_ID=AKIA...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_SESSION_TOKEN=...   # optional, for temporary creds
 docker-compose up -d data-execution-glue-emr
 ```
+
+**Option B – Profile**  
+Run `aws sso login` on the host, then start the container (Compose mounts `~/.aws`). Optionally set `AWS_PROFILE` before `up`. On Windows, set `HOME=%USERPROFILE%` if the `.aws` mount path is wrong.
 
 ### Manual Docker Build
 
@@ -388,6 +400,35 @@ curl http://localhost:8003/health
   "service": "data-execution-glue-emr"
 }
 ```
+
+### Manually check if the MCP server can connect to AWS
+
+1. **Confirm the server is up** (from host or another container that can reach it):
+   ```bash
+   curl -s http://localhost:8003/health
+   ```
+   Expect `{"status":"healthy","service":"data-execution-glue-emr"}`.
+
+2. **Call a Glue tool** that hits AWS (use a real Glue job name and run ID from your account):
+   ```bash
+   curl -s -X POST http://localhost:8003/tools \
+     -H "Content-Type: application/json" \
+     -d '{"tool":"get_glue_job_run","arguments":{"job_name":"YOUR_GLUE_JOB_NAME","run_id":"jr_xxxxxxxx"}}'
+   ```
+   Replace `YOUR_GLUE_JOB_NAME` and `jr_xxxxxxxx` with a real job name and run ID (e.g. from the Glue console or from a previous incident: `dev-ops-autopilot-fail-for-test` and a known run id).
+
+   **How to interpret the response:**
+   - **200** with a `result` object → MCP server reached AWS and got Glue data; connectivity is OK.
+   - **403** with `Glue job not in allowlist` → Server reached AWS; the job is not in the allowlist (add it or disable allowlist for testing).
+   - **500** with `Unable to locate credentials` or `ExpiredToken` → Credentials are missing or expired; fix env/keys or profile in the container.
+   - **500** with another error → Check the `detail` message (e.g. wrong region, no permission).
+
+3. **Optional: list runs** for a job (no run ID needed):
+   ```bash
+   curl -s -X POST http://localhost:8003/tools \
+     -H "Content-Type: application/json" \
+     -d '{"tool":"list_glue_job_runs","arguments":{"job_name":"YOUR_GLUE_JOB_NAME"}}'
+   ```
 
 ### Test Get Glue Job Run
 

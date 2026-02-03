@@ -8,11 +8,22 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 # Load .env from project root (works when run from repo root or agent-host/)
+# AWS credential env vars from .env override ~/.aws/credentials (what "aws configure" uses).
+# If they weren't set by the shell, drop them after load so boto3 uses the credentials file.
+_aws_cred_vars = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN")
+_had_aws_creds_before = {k for k in _aws_cred_vars if os.environ.get(k)}
 _load_env_path = Path(__file__).resolve().parents[3] / ".env"
 if _load_env_path.exists():
     load_dotenv(_load_env_path)
 else:
     load_dotenv()  # fallback: cwd and parents
+for _k in _aws_cred_vars:
+    if _k in os.environ and _k not in _had_aws_creds_before:
+        os.environ.pop(_k, None)
+
+# boto3 treats AWS_PROFILE="" as "use profile named ''" and raises ProfileNotFound.
+if os.environ.get("AWS_PROFILE", "").strip() == "":
+    os.environ.pop("AWS_PROFILE", None)
 
 
 class Config(BaseModel):
@@ -208,6 +219,11 @@ class Config(BaseModel):
                     "MCP_DEVTOOLS_URL", "http://localhost:8007"
                 ),
                 mcp_chatops_url=os.getenv("MCP_CHATOPS_URL", "http://localhost:8008"),
+                # SQS (for manual run with --sqs against AWS queue)
+                sqs_queue_incidents=os.getenv("SQS_QUEUE_INCIDENTS"),
+                sqs_queue_dq=os.getenv("SQS_QUEUE_DQ"),
+                sqs_queue_cost=os.getenv("SQS_QUEUE_COST"),
+                sqs_queue_daily=os.getenv("SQS_QUEUE_DAILY"),
                 # Local storage
                 local_evidence_dir=os.getenv("LOCAL_EVIDENCE_DIR", "./evidence"),
                 local_mode=True,

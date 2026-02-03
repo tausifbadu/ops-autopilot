@@ -76,8 +76,12 @@ def process_sqs_messages():
 
     This is a long-running process that polls SQS continuously.
     """
+    import os
+
     import boto3
     import time
+
+    from botocore.exceptions import ClientError
 
     logger.info("Starting SQS polling loop (AWS mode)")
 
@@ -85,14 +89,37 @@ def process_sqs_messages():
         logger.error("SQS queue URL not configured")
         sys.exit(1)
 
+    # Debug: log what AWS credentials/env the process sees (no secret values)
+    _profile = os.environ.get("AWS_PROFILE", "")
+    _has_ak = "set" if os.environ.get("AWS_ACCESS_KEY_ID") else "unset"
+    _has_sk = "set" if os.environ.get("AWS_SECRET_ACCESS_KEY") else "unset"
+    _has_token = "set" if os.environ.get("AWS_SESSION_TOKEN") else "unset"
+    logger.info(
+        "AWS env (this process): AWS_PROFILE=%s AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s",
+        repr(_profile) or "(not set)",
+        _has_ak,
+        _has_sk,
+        _has_token,
+    )
+    try:
+        sts = boto3.client("sts", region_name=config.aws_region)
+        identity = sts.get_caller_identity()
+        logger.info(
+            "STS get_caller_identity: Account=%s Arn=%s",
+            identity.get("Account"),
+            identity.get("Arn"),
+        )
+    except Exception as e:
+        logger.warning("STS get_caller_identity failed (credentials may be expired): %s", e)
+
     sqs = boto3.client("sqs", region_name=config.aws_region)
     dispatcher = Dispatcher()
 
-    logger.info(f"Polling SQS queue: {config.sqs_queue_incidents}")
+    logger.info(f"Polling SQS queue: {config.sqs_queue_incidents} (long poll 20s when idle)")
 
     while True:
         try:
-            # Receive messages from SQS
+            # Receive messages from SQS (blocks up to WaitTimeSeconds when queue is empty)
             response = sqs.receive_message(
                 QueueUrl=config.sqs_queue_incidents,
                 MaxNumberOfMessages=1,
@@ -100,6 +127,11 @@ def process_sqs_messages():
             )
 
             messages = response.get("Messages", [])
+            if not messages:
+                logger.info("Queue empty, waiting for messages (next poll in ~20s).")
+
+            if messages:
+                logger.info("Received %d message(s) from SQS", len(messages))
 
             for message in messages:
                 try:
@@ -117,12 +149,14 @@ def process_sqs_messages():
                         continue
 
                     # Process event
-                    incident_id = dispatcher.dispatch(event)
+                    result = dispatcher.dispatch(event)
 
-                    if incident_id:
-                        logger.info(f"Processed event: incident_id={incident_id}")
+                    if result and result.success:
+                        logger.info(f"Processed event: incident_id={result.incident_id}")
+                    elif result:
+                        logger.warning(f"Event processed but not successful: {result.reason}")
 
-                    # Delete message from queue
+                    # Delete message from queue (so we don't reprocess; failed handling can go to DLQ via visibility timeout)
                     sqs.delete_message(
                         QueueUrl=config.sqs_queue_incidents,
                         ReceiptHandle=message["ReceiptHandle"],
@@ -135,6 +169,21 @@ def process_sqs_messages():
         except KeyboardInterrupt:
             logger.info("Shutting down SQS polling loop")
             break
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            if error_code == "ExpiredToken":
+                # Stale keys in env (e.g. from .env). Clear so boto3 uses default chain (profile).
+                for _k in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+                    os.environ.pop(_k, None)
+                logger.warning(
+                    "ExpiredToken: cleared credential env vars; next poll will use default credential chain (e.g. AWS_PROFILE). "
+                    "Update .env or re-export keys to use keys directly."
+                )
+                sqs = boto3.client("sqs", region_name=config.aws_region)
+                # Continue loop without sleep so we retry immediately with new client
+            else:
+                logger.error(f"Error in SQS polling loop: {e}", exc_info=True)
+                time.sleep(5)
         except Exception as e:
             logger.error(f"Error in SQS polling loop: {e}", exc_info=True)
             time.sleep(5)  # Wait before retrying

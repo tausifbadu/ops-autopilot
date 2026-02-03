@@ -1,5 +1,11 @@
 """FastAPI application for data execution Glue/EMR MCP server."""
 
+import os
+
+# Clear empty AWS_PROFILE before any boto3 use (avoids ProfileNotFound for profile "").
+if os.environ.get("AWS_PROFILE", "").strip() == "":
+    os.environ.pop("AWS_PROFILE", None)
+
 from typing import Any
 
 from fastapi import FastAPI, HTTPException

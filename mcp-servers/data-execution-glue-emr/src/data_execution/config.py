@@ -5,6 +5,11 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+# boto3 treats AWS_PROFILE="" as "use profile named ''" and raises ProfileNotFound.
+# Remove empty AWS_PROFILE so boto3 uses default credential chain (env vars / default profile).
+if os.environ.get("AWS_PROFILE", "").strip() == "":
+    os.environ.pop("AWS_PROFILE", None)
+
 
 class Config(BaseModel):
     """Server configuration."""

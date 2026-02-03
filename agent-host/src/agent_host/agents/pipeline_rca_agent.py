@@ -42,6 +42,12 @@ class PipelineRCAAgent:
             MCPClientConfig(base_url=config.mcp_orchestration_url)
         )
         self.github_client = GitHubMCPClient()
+        # Data execution (Glue/EMR) – used for Glue job run details when no Step Functions
+        self.data_execution_client = (
+            MCPClient(MCPClientConfig(base_url=config.mcp_data_execution_url))
+            if config.mcp_data_execution_url
+            else None
+        )
 
         # Initialize LLM provider
         self.llm = get_llm_provider(provider_name=llm_provider_name, model=llm_model)
@@ -58,7 +64,11 @@ class PipelineRCAAgent:
         Returns:
             Pipeline incident analysis with root cause
         """
-        logger.info(f"Investigating pipeline failure: {event.execution_arn}")
+        logger.info(
+            "Investigating pipeline failure: execution_arn=%s, glue_job=%s",
+            event.execution_arn,
+            getattr(event, "glue_job_name", None),
+        )
 
         # Step 1: Gather evidence
         evidence = self._gather_evidence(event)
@@ -131,6 +141,35 @@ class PipelineRCAAgent:
 
             except Exception as e:
                 logger.warning(f"Failed to gather execution evidence: {e}")
+
+        # If Glue job failure (no Step Functions), gather Glue job run details from data-execution MCP
+        if event.glue_job_name and event.glue_job_run_id and self.data_execution_client:
+            try:
+                from shared.schemas.evidence import GlueJobRunDetails
+
+                glue_response = self.data_execution_client.call_tool(
+                    tool_name="get_glue_job_run",
+                    arguments={
+                        "job_name": event.glue_job_name,
+                        "run_id": event.glue_job_run_id,
+                    },
+                )
+                if glue_response.result:
+                    r = glue_response.result
+                    evidence.glue_job_run = GlueJobRunDetails(
+                        job_name=r.get("job_name", event.glue_job_name),
+                        job_run_id=r.get("run_id", event.glue_job_run_id),
+                        status=r.get("job_run_state", "UNKNOWN"),
+                        started_on=r.get("started_on"),
+                        completed_on=r.get("completed_on"),
+                        error_message=r.get("error_message") or r.get("error_string"),
+                        allocated_capacity=r.get("allocated_capacity"),
+                        execution_time=r.get("execution_time"),
+                        log_group=r.get("log_group_name"),
+                    )
+                    logger.info("Collected Glue job run evidence via data-execution MCP")
+            except Exception as e:
+                logger.warning("Failed to gather Glue job run evidence: %s", e)
 
         return evidence
 

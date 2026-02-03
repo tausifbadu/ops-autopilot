@@ -136,7 +136,7 @@ class CoordinatorAgent:
         except (ValueError, KeyError, AttributeError, TypeError) as e:
             # Handle expected errors (data validation, missing attributes, etc.)
             logger.error("Expected error during investigation: %s", e, exc_info=True)
-            return DecisionPacket(
+            error_packet = DecisionPacket(
                 incident_id=incident_id,
                 event_type=event.event_type,
                 what_happened=f"Error during investigation: {str(e)}",
@@ -149,11 +149,13 @@ class CoordinatorAgent:
                 evidence_refs=[],
                 created_at=datetime.utcnow(),
             )
+            self._store_decision(incident_id, error_packet, event)
+            return error_packet
         except Exception as e:
             # Handle unexpected errors (log critically and re-raise for monitoring)
             logger.critical("Unexpected error during investigation: %s", e, exc_info=True)
-            # Still return error decision packet to prevent complete failure
-            return DecisionPacket(
+            # Still return and persist error decision packet so *_decision.json is created
+            error_packet = DecisionPacket(
                 incident_id=incident_id,
                 event_type=event.event_type,
                 what_happened=f"Unexpected error during investigation: {str(e)}",
@@ -166,6 +168,8 @@ class CoordinatorAgent:
                 evidence_refs=[],
                 created_at=datetime.utcnow(),
             )
+            self._store_decision(incident_id, error_packet, event)
+            return error_packet
 
     def _investigate(self, event: PipelineFailureEvent | APIFailureEvent) -> dict[str, Any]:
         """Investigate event using appropriate specialist agent.

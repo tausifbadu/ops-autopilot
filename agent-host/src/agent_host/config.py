@@ -190,8 +190,8 @@ class Config(BaseModel):
                 s3_evidence_bucket=os.getenv("S3_EVIDENCE_BUCKET"),
                 # Global S3 configuration
                 s3_evidence_region=os.getenv("S3_EVIDENCE_REGION", os.getenv("AWS_REGION", "us-east-1")),
-                # LLM
-                llm_provider=os.getenv("LLM_PROVIDER", "openai" if not is_aws else "bedrock"),
+                # LLM: use env if set and non-empty; otherwise default (bedrock on AWS, openai local)
+                llm_provider=(os.getenv("LLM_PROVIDER") or "").strip() or ("openai" if not is_aws else "bedrock"),
                 llm_api_key=os.getenv("LLM_API_KEY"),
                 default_repository=os.getenv("DEFAULT_REPOSITORY"),
                 llm_model=os.getenv("LLM_MODEL"),

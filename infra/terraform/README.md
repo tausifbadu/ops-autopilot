@@ -19,6 +19,22 @@ This directory contains Terraform configuration for deploying ops-autopilot to A
 2. Terraform >= 1.0
 3. Docker (for building images)
 
+## Remote state (S3 backend)
+
+State is stored in S3. **Create the bucket once** before the first `terraform init`:
+
+**PowerShell:**
+```powershell
+aws s3 mb s3://ops-autopilot-terraform-state --region us-east-1
+```
+
+**Bash:**
+```bash
+aws s3 mb s3://ops-autopilot-terraform-state --region us-east-1
+```
+
+If the bucket name is already taken (S3 names are global), use a unique name (e.g. `ops-autopilot-terraform-state-<account-id>`) and set the same name in `main.tf` in the `backend "s3"` block.
+
 ## Quick Start
 
 ### 1. Initialize Terraform
@@ -37,6 +53,30 @@ export TF_VAR_environment=dev
 export TF_VAR_aws_region=us-east-1
 export TF_VAR_llm_provider=bedrock
 ```
+
+### Using OpenAI for Agent Host on ECS
+
+To use OpenAI instead of Bedrock for the ECS agent-host:
+
+1. **Store your OpenAI API key in Secrets Manager** (one-time):
+   ```bash
+   aws secretsmanager create-secret --name dev/ops-autopilot/openai-api-key --secret-string "sk-..."
+   ```
+   Note the secret ARN from the output.
+
+2. **Set Terraform variables** (e.g. in `terraform.tfvars` or `-var`):
+   ```hcl
+   llm_provider           = "openai"
+   llm_api_key_secret_arn = "arn:aws:secretsmanager:us-east-1:ACCOUNT:secret:dev/ops-autopilot/openai-api-key-xxxxx"
+   llm_model               = "gpt-4o"   # optional; omit for default
+   ```
+
+3. **Apply** and force a new ECS deployment so running tasks get the new env and secret:
+   ```bash
+   terraform apply
+   aws ecs update-service --cluster dev-ops-autopilot-cluster --service dev-agent-host --force-new-deployment
+   ```
+   If the agent-host still uses Bedrock after switching to OpenAI, check startup logs for `LLM: LLM_PROVIDER env=...`; if env is `(not set)`, the task definition in use is old—force the deployment above and wait for the new task to start.
 
 ### 3. Plan deployment
 

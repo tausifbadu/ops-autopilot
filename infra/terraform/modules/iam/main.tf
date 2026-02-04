@@ -18,6 +18,12 @@ variable "sqs_queue_urls" {
   default = {}
 }
 
+variable "sqs_queue_arns" {
+  description = "SQS queue ARNs for IAM policy (use queue ARN, not URL, for Resource)"
+  type        = map(string)
+  default     = {}
+}
+
 variable "dynamodb_tables" {
   type = map(string)
 }
@@ -41,7 +47,13 @@ variable "s3_evidence_region" {
   default = ""
 }
 
-# ECS Execution Role (for pulling images, writing logs)
+variable "ecs_secret_arns" {
+  description = "ARNs of secrets (e.g. LLM API key) that ECS tasks need at startup; execution role gets GetSecretValue"
+  type        = list(string)
+  default     = []
+}
+
+# ECS Execution Role (for pulling images, writing logs, reading secrets)
 resource "aws_iam_role" "ecs_execution" {
   name = "${var.environment}-ops-autopilot-ecs-execution"
 
@@ -64,32 +76,37 @@ resource "aws_iam_role_policy" "ecs_execution" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "ecr:GetAuthorizationToken"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage"
-        ]
-        Resource = "arn:aws:ecr:${var.region}:${var.account_id}:repository/*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:${var.region}:${var.account_id}:log-group:/ecs/${var.environment}/*:*"
-      }
-    ]
+    Statement = concat(
+      [
+        {
+          Effect = "Allow"
+          Action = ["ecr:GetAuthorizationToken"]
+          Resource = "*"
+        },
+        {
+          Effect = "Allow"
+          Action = [
+            "ecr:BatchCheckLayerAvailability",
+            "ecr:GetDownloadUrlForLayer",
+            "ecr:BatchGetImage"
+          ]
+          Resource = "arn:aws:ecr:${var.region}:${var.account_id}:repository/*"
+        },
+        {
+          Effect = "Allow"
+          Action = [
+            "logs:CreateLogStream",
+            "logs:PutLogEvents"
+          ]
+          Resource = "arn:aws:logs:${var.region}:${var.account_id}:log-group:/ecs/${var.environment}/*:*"
+        }
+      ],
+      length(var.ecs_secret_arns) > 0 ? [{
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.ecs_secret_arns
+      }] : []
+    )
   })
 }
 
@@ -148,8 +165,8 @@ resource "aws_iam_role_policy" "agent_host_task" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
-      # SQS permissions (only if queues are provided)
-      length(var.sqs_queue_urls) > 0 ? [
+      # SQS permissions (queue ARNs required for IAM Resource)
+      length(var.sqs_queue_arns) > 0 ? [
         {
           Effect = "Allow"
           Action = [
@@ -157,7 +174,7 @@ resource "aws_iam_role_policy" "agent_host_task" {
             "sqs:DeleteMessage",
             "sqs:GetQueueAttributes"
           ]
-          Resource = [for url in values(var.sqs_queue_urls) : url]
+          Resource = [for arn in values(var.sqs_queue_arns) : arn]
         }
       ] : [],
       # DynamoDB permissions (global or regional)

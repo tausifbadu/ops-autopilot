@@ -71,7 +71,7 @@ module "iam" {
   environment     = var.environment
   account_id      = data.aws_caller_identity.current.account_id
   region          = data.aws_region.current.name
-  sqs_queue_urls  = module.sqs.queue_urls
+  sqs_queue_arns  = module.sqs.queue_arns
   
   # Global DynamoDB tables
   dynamodb_tables = var.global_dynamodb_tables

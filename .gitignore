@@ -23,4 +23,6 @@ build/
 crash.log
 crash.*.log
 *.tfvars.json
+terraform.tfvars
+infra/terraform/terraform.tfvars
 infra/terraform/modules/*/*.zip

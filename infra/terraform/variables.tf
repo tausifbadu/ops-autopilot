@@ -52,7 +52,7 @@ variable "log_retention_days" {
 }
 
 variable "llm_provider" {
-  description = "Default LLM provider (bedrock, openai, anthropic, gemini)"
+  description = "LLM provider for Agent Host (bedrock, openai, anthropic, gemini). Use openai for OpenAI on ECS."
   type        = string
   default     = "bedrock"
   
@@ -60,6 +60,18 @@ variable "llm_provider" {
     condition     = contains(["bedrock", "openai", "anthropic", "gemini"], var.llm_provider)
     error_message = "LLM provider must be bedrock, openai, anthropic, or gemini"
   }
+}
+
+variable "llm_api_key_secret_arn" {
+  description = "ARN of Secrets Manager secret containing LLM API key (required for openai/anthropic; optional for bedrock). ECS execution role will get read access."
+  type        = string
+  default     = null
+}
+
+variable "llm_model" {
+  description = "Optional LLM model override (e.g. gpt-4o, gpt-4o-mini). Leave empty for provider default."
+  type        = string
+  default     = null
 }
 
 variable "tags" {

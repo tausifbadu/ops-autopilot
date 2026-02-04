@@ -7,6 +7,7 @@ from pathlib import Path
 
 from agent_host.config import config
 from agent_host.dispatcher import Dispatcher
+from agent_host.health_server import start_health_server
 from agent_host.logging import get_logger
 from shared.schemas.events import APIFailureEvent, PipelineFailureEvent
 
@@ -85,6 +86,9 @@ def process_sqs_messages():
 
     logger.info("Starting SQS polling loop (AWS mode)")
 
+    # ECS health check expects GET /health on port 8000; without this, tasks are marked unhealthy and restarted
+    start_health_server()
+
     if not config.sqs_queue_incidents:
         logger.error("SQS queue URL not configured")
         sys.exit(1)
@@ -111,6 +115,13 @@ def process_sqs_messages():
         )
     except Exception as e:
         logger.warning("STS get_caller_identity failed (credentials may be expired): %s", e)
+
+    _llm_env = os.environ.get("LLM_PROVIDER", "")
+    logger.info(
+        "LLM: LLM_PROVIDER env=%s, resolved provider=%s (use openai in tfvars + redeploy if you want OpenAI)",
+        repr(_llm_env) if _llm_env else "(not set)",
+        config.llm_provider,
+    )
 
     sqs = boto3.client("sqs", region_name=config.aws_region)
     dispatcher = Dispatcher()

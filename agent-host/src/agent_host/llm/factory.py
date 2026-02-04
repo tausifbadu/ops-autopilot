@@ -36,9 +36,11 @@ class LLMFactory:
         Raises:
             ValueError: If provider name is not supported
         """
-        provider_name = provider_name or config.llm_provider.lower()
+        provider_name = (provider_name or (config.llm_provider or "").strip() or "openai").lower()
+        if not provider_name:
+            provider_name = "openai"
 
-        logger.info(f"Creating LLM provider: {provider_name} (model: {model})")
+        logger.info("Using LLM provider: %s (model: %s)", provider_name, model or "(default)")
 
         if provider_name == "bedrock":
             return BedrockProvider(model=model)

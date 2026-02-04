@@ -25,6 +25,9 @@ for _k in _aws_cred_vars:
 if os.environ.get("AWS_PROFILE", "").strip() == "":
     os.environ.pop("AWS_PROFILE", None)
 
+# Default evidence dir: repo root / evidence (same regardless of cwd when running agent-host).
+_default_evidence_dir = Path(__file__).resolve().parents[3] / "evidence"
+
 
 class Config(BaseModel):
     """Agent Host configuration."""
@@ -96,9 +99,9 @@ class Config(BaseModel):
         None, description="Region where S3 evidence bucket is located"
     )
     
-    # Local mode settings
+    # Local mode settings (default: repo root / evidence, so one folder regardless of cwd)
     local_evidence_dir: str = Field(
-        default="./evidence", description="Local directory for evidence storage"
+        default=str(_default_evidence_dir), description="Local directory for evidence storage"
     )
     local_mode: bool = Field(
         default=False, description="Run in local mode (no SQS polling)"
@@ -225,7 +228,7 @@ class Config(BaseModel):
                 sqs_queue_cost=os.getenv("SQS_QUEUE_COST"),
                 sqs_queue_daily=os.getenv("SQS_QUEUE_DAILY"),
                 # Local storage
-                local_evidence_dir=os.getenv("LOCAL_EVIDENCE_DIR", "./evidence"),
+                local_evidence_dir=os.getenv("LOCAL_EVIDENCE_DIR", str(_default_evidence_dir)),
                 local_mode=True,
                 local_event_file=os.getenv("LOCAL_EVENT_FILE"),
                 # LLM (can use same providers locally)

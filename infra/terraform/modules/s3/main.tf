@@ -89,6 +89,7 @@ output "bucket_names" {
   value = {
     evidence = aws_s3_bucket.evidence.bucket
     scripts  = aws_s3_bucket.scripts.bucket
+    data = aws_s3_bucket.ops_autopilot_storage.bucket
   }
 }
 
@@ -103,10 +104,9 @@ resource "aws_s3_bucket" "ops_autopilot_storage" {
 resource "aws_s3_object" "folders" {
   for_each = toset([
     "raw/",
-    "raw/csv",
     "curated/",
     "stage/",
-    "stage/parquet"
+    "stage/parquet/"
   ])
 
   bucket = aws_s3_bucket.ops_autopilot_storage.id

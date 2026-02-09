@@ -73,3 +73,40 @@ resource "aws_glue_job" "fail_for_test" {
     Name = "${var.environment}-ops-autopilot-fail-for-test"
   }
 }
+
+# Allow Glue to read the script from S3
+resource "aws_iam_role_policy" "glue_s3_policy" {
+  name   = "s3-data"
+  role   = aws_iam_role.glue.id
+  policy = data.aws_iam_policy_document.glue_s3_policy.json
+}
+
+data "aws_iam_policy_document" "glue_s3_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:ListBucket"
+    ]
+    resources = [
+      "arn:aws:s3:::${var.script_bucket_name}",
+      "arn:aws:s3:::${var.script_bucket_name}/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+      "s3:AbortMultipartUpload"
+    ]
+    resources = [
+      "arn:aws:s3:::ops-autopilot-data",
+      "arn:aws:s3:::ops-autopilot-data/*"
+    ]
+  }
+}

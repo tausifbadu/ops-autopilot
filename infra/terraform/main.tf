@@ -50,6 +50,14 @@ module "s3" {
   environment = var.environment
 }
 
+module "upload_csv" {
+  source = "./modules/s3_upload"
+
+  bucket_name = "ops-autopilot-data"
+  s3_key      = "raw/csv/sample.csv"
+  local_file  = "${path.module}/data/sample.csv"
+}
+
 # DynamoDB Tables
 module "dynamodb" {
   source = "./modules/dynamodb"

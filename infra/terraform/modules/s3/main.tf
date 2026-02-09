@@ -91,3 +91,24 @@ output "bucket_names" {
     scripts  = aws_s3_bucket.scripts.bucket
   }
 }
+
+resource "aws_s3_bucket" "ops_autopilot_storage" {
+  bucket = "ops-autopilot-data"
+
+  tags = {
+    Name = "ops_autopilot_data_bucket"
+  }
+}
+
+resource "aws_s3_object" "folders" {
+  for_each = toset([
+    "raw/",
+    "raw/csv",
+    "curated/",
+    "stage/",
+    "stage/parquet"
+  ])
+
+  bucket = aws_s3_bucket.ops_autopilot_storage.id
+  key    = each.value
+}

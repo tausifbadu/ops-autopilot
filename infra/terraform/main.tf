@@ -6,6 +6,14 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 
   # Remote state in S3. When you run plan/apply locally, Terraform uses your AWS credentials
@@ -56,6 +64,24 @@ module "upload_csv" {
   bucket_name = "ops-autopilot-data"
   s3_key      = "raw/csv/sample.csv"
   local_file  = "${path.module}/data/sample.csv"
+}
+
+module "upload_attendance_csv" {
+  source = "./modules/s3_upload"
+
+  bucket_name = "ops-autopilot-data"
+  s3_key      = "raw/csv/attendance.csv"
+  local_file  = "${path.module}/data/attendance.csv"
+}
+
+module "upload_all_csv" {
+  source = "./modules/s3_upload"
+
+  for_each = toset(fileset("${path.module}/data", "*.csv"))
+
+  bucket_name = "ops-autopilot-data"
+  s3_key      = "raw/csv/${each.value}"
+  local_file  = "${path.module}/data/${each.value}"
 }
 
 # DynamoDB Tables
@@ -114,6 +140,20 @@ module "glue_test_job" {
   script_bucket_name = module.s3.bucket_names["scripts"]
   script_key         = "glue-scripts/ops-autopilot-fail-for-test.py"
   script_source_path = "${path.root}/glue-scripts/ops-autopilot-fail-for-test.py"
+}
+
+module "glue_csv_parquet" {
+  source = "./modules/glue-csv-parquet"
+
+  environment        = var.environment
+  script_bucket_name = module.s3.bucket_names["scripts"]
+  script_key         = "glue-scripts/ops-autopilot-csv-to-parquet.py"
+  script_source_path = "${path.root}/glue-scripts/ops-autopilot-csv-to-parquet.py"
+
+  data_bucket_name = module.s3.bucket_names["data"]
+  input_prefix     = "raw/csv/"
+  output_prefix    = "stage/parquet/"
+  temp_prefix      = "tmp/glue/"
 }
 
 

@@ -1,0 +1,8 @@
+enroll_id,student_id,course_id,enroll_date,status
+101,1,C1,2022-06-12,Active
+102,1,C2,2022-07-01,Completed
+103,2,C3,2021-07-20,Completed
+104,3,C2,2022-02-10,Active
+105,4,C4,2020-11-10,Completed
+106,5,C1,2021-09-20,Completed
+107,6,C3,2022-03-15,Active

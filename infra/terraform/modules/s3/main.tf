@@ -101,6 +101,11 @@ resource "aws_s3_bucket" "ops_autopilot_storage" {
   }
 }
 
+resource "aws_s3_bucket_notification" "ops_autopilot_storage_eventbridge" {
+  bucket      = aws_s3_bucket.ops_autopilot_storage.id
+  eventbridge = true
+}
+
 resource "aws_s3_object" "folders" {
   for_each = toset([
     "raw/",

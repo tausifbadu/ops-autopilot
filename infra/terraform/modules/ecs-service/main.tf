@@ -82,6 +82,12 @@ variable "secrets" {
   default     = {}
 }
 
+variable "service_registry_arn" {
+  description = "ARN of Cloud Map service discovery registry so tasks get DNS name (e.g. <service>.<env>.local)"
+  type        = string
+  default     = null
+}
+
 # ECS Task Definition
 resource "aws_ecs_task_definition" "this" {
   family                   = "${var.environment}-${var.name}"
@@ -151,6 +157,14 @@ resource "aws_ecs_service" "this" {
     subnets          = var.subnet_ids
     security_groups  = var.security_group_ids
     assign_public_ip = true  # Public subnets, no NAT; needed for ECR pull / AWS APIs
+  }
+
+  dynamic "service_registries" {
+    for_each = var.service_registry_arn != null && var.service_registry_arn != "" ? [1] : []
+    content {
+      registry_arn   = var.service_registry_arn
+      container_name = var.name
+    }
   }
 
   deployment_maximum_percent         = 200

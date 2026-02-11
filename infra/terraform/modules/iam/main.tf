@@ -271,8 +271,27 @@ resource "aws_iam_role_policy" "agent_host_task" {
   })
 }
 
-# MCP Server Task Role Policies (placeholder - add specific permissions per server)
-# For now, they inherit basic ECS permissions
+# MCP Server Task Role Policies - data-execution-glue-emr needs Glue read for get_glue_job_run / list_glue_job_runs
+resource "aws_iam_role_policy" "mcp_data_execution_glue" {
+  for_each = toset(["data-execution-glue-emr"])
+
+  name   = "${var.environment}-ops-autopilot-mcp-${each.key}-glue-policy"
+  role   = aws_iam_role.mcp_server_tasks[each.key].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "glue:GetJob",
+          "glue:GetJobRun",
+          "glue:GetJobRuns"
+        ]
+        Resource = "arn:aws:glue:${var.region}:${var.account_id}:job/*"
+      }
+    ]
+  })
+}
 
 output "mcp_server_task_role_arns" {
   value = { for k, v in aws_iam_role.mcp_server_tasks : k => v.arn }

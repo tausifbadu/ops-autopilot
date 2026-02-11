@@ -54,7 +54,7 @@ variable "log_retention_days" {
 variable "llm_provider" {
   description = "LLM provider for Agent Host (bedrock, openai, anthropic, gemini). Use openai for OpenAI on ECS."
   type        = string
-  default     = "bedrock"
+  default     = "openai"
   
   validation {
     condition     = contains(["bedrock", "openai", "anthropic", "gemini"], var.llm_provider)
@@ -63,9 +63,16 @@ variable "llm_provider" {
 }
 
 variable "llm_api_key_secret_arn" {
-  description = "ARN of Secrets Manager secret containing LLM API key (required for openai/anthropic; optional for bedrock). ECS execution role will get read access."
+  description = "ARN of existing Secrets Manager secret containing LLM API key. Leave null if using openai_api_key (Terraform will create the secret)."
   type        = string
   default     = null
+}
+
+variable "openai_api_key" {
+  description = "OpenAI API key; if set, Terraform creates a Secrets Manager secret and ECS will use it. Prefer this over llm_api_key_secret_arn so Terraform manages the secret. Set via TF_VAR_openai_api_key or in a .tfvars file (do not commit)."
+  type        = string
+  default     = null
+  sensitive   = true
 }
 
 variable "llm_model" {

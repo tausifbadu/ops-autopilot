@@ -58,17 +58,27 @@ export TF_VAR_llm_provider=bedrock
 
 To use OpenAI instead of Bedrock for the ECS agent-host:
 
-1. **Store your OpenAI API key in Secrets Manager** (one-time):
-   ```bash
-   aws secretsmanager create-secret --name dev/ops-autopilot/openai-api-key --secret-string "sk-..."
-   ```
-   Note the secret ARN from the output.
+**Option A – Terraform creates the secret (recommended)**  
+Set your API key in Terraform; Terraform will create the Secrets Manager secret and use its ARN.
 
-2. **Set Terraform variables** (e.g. in `terraform.tfvars` or `-var`):
+1. Set variables (e.g. in `terraform.tfvars`, **do not commit** – add `terraform.tfvars` to `.gitignore`):
+   ```hcl
+   llm_provider   = "openai"
+   openai_api_key = "sk-your-openai-api-key"
+   llm_model      = "gpt-4o"   # optional
+   ```
+   Or pass the key at apply time: `TF_VAR_openai_api_key="sk-..." terraform apply -var="llm_provider=openai"`
+
+2. **Apply** and force a new ECS deployment (see step 3 below).
+
+**Option B – Use an existing Secrets Manager secret**  
+If you already created the secret (e.g. via AWS CLI):
+
+1. Set Terraform variables:
    ```hcl
    llm_provider           = "openai"
    llm_api_key_secret_arn = "arn:aws:secretsmanager:us-east-1:ACCOUNT:secret:dev/ops-autopilot/openai-api-key-xxxxx"
-   llm_model               = "gpt-4o"   # optional; omit for default
+   llm_model              = "gpt-4o"   # optional
    ```
 
 3. **Apply** and force a new ECS deployment so running tasks get the new env and secret:

@@ -48,6 +48,27 @@ resource "aws_iam_service_linked_role" "emr_cleanup" {
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
+# Optional: Terraform-managed OpenAI API key secret (when openai_api_key is set)
+resource "aws_secretsmanager_secret" "openai_api_key" {
+  count = var.openai_api_key != null && var.openai_api_key != "" ? 1 : 0
+
+  name                    = "${var.environment}/ops-autopilot/openai-api-key"
+  description             = "OpenAI API key for ops-autopilot Agent Host (LLM)"
+  recovery_window_in_days = 7
+}
+
+resource "aws_secretsmanager_secret_version" "openai_api_key" {
+  count = var.openai_api_key != null && var.openai_api_key != "" ? 1 : 0
+
+  secret_id     = aws_secretsmanager_secret.openai_api_key[0].id
+  secret_string = var.openai_api_key
+}
+
+locals {
+  # Use Terraform-created secret ARN when openai_api_key is set, else use existing llm_api_key_secret_arn
+  llm_api_key_secret_arn = (var.openai_api_key != null && var.openai_api_key != "") ? aws_secretsmanager_secret.openai_api_key[0].arn : (var.llm_api_key_secret_arn != null && var.llm_api_key_secret_arn != "" ? var.llm_api_key_secret_arn : "")
+}
+
 # VPC and Networking (required for ECS)
 module "vpc" {
   source = "./modules/vpc"
@@ -128,7 +149,7 @@ module "iam" {
   sqs_queue_arns  = module.sqs.queue_arns
   dynamodb_tables = module.dynamodb.table_names
   s3_buckets      = module.s3.bucket_names
-  ecs_secret_arns = var.llm_api_key_secret_arn != null && var.llm_api_key_secret_arn != "" ? [var.llm_api_key_secret_arn] : []
+  ecs_secret_arns = local.llm_api_key_secret_arn != "" ? [local.llm_api_key_secret_arn] : []
 }
 
 # ---------------------------------------------------------------------------
@@ -240,6 +261,37 @@ module "pipeline_event_transformer" {
    }
  }
 
+ # Service discovery so agent-host can resolve MCP hostnames (e.g. dev-mcp-data-execution-glue-emr.dev.local)
+ resource "aws_service_discovery_private_dns_namespace" "main" {
+   name        = "${var.environment}.local"
+   description = "Private DNS namespace for ECS service discovery (MCP servers)"
+   vpc         = module.vpc.vpc_id
+ }
+
+ resource "aws_service_discovery_service" "mcp" {
+   for_each = toset([
+     "orchestration-sfn",
+     "data-execution-glue-emr",
+     "observability-cloudwatch",
+     "devtools-github",
+   ])
+
+   name = "${var.environment}-mcp-${each.key}"
+
+   dns_config {
+     namespace_id   = aws_service_discovery_private_dns_namespace.main.id
+     dns_records {
+       ttl  = 10
+       type = "A"
+     }
+     routing_policy = "MULTIVALUE"
+   }
+
+   health_check_custom_config {
+     failure_threshold = 1
+   }
+ }
+
  # ECS: Agent Host
  module "agent_host" {
    source = "./modules/ecs-service"
@@ -280,7 +332,7 @@ module "pipeline_event_transformer" {
      var.llm_model != null && var.llm_model != "" ? { LLM_MODEL = var.llm_model } : {}
    )
 
-   secrets = var.llm_api_key_secret_arn != null && var.llm_api_key_secret_arn != "" ? { LLM_API_KEY = var.llm_api_key_secret_arn } : {}
+   secrets = local.llm_api_key_secret_arn != "" ? { LLM_API_KEY = local.llm_api_key_secret_arn } : {}
  }
 
  # ECS: MCP Servers (orchestration-sfn, data-execution-glue-emr, observability-cloudwatch, devtools-github)
@@ -317,6 +369,8 @@ module "pipeline_event_transformer" {
    task_role_arn      = module.iam.mcp_server_task_role_arns[each.key]
    execution_role_arn = module.iam.ecs_execution_role_arn
    log_group_name     = aws_cloudwatch_log_group.mcp_servers[each.key].name
+
+   service_registry_arn = aws_service_discovery_service.mcp[each.key].arn
 
    cpu    = each.value.cpu
    memory = each.value.memory

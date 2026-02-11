@@ -89,8 +89,10 @@ terraform apply -var="environment=prod"
 
 ### Step 2: Build and Push Docker Images
 
+**Windows:** Run the ECR login and `docker push` commands in **Command Prompt (CMD)**, not PowerShell. PowerShell can corrupt the ECR token (encoding/BOM) and cause "400 Bad Request" or "no basic auth credentials". Use CMD for a reliable login and push.
+
 ```bash
-# Get ECR login
+# Get ECR login (on Windows use CMD, not PowerShell)
 aws ecr get-login-password --region us-east-1 | \
   docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-1.amazonaws.com
 
@@ -201,6 +203,9 @@ The Agent Host automatically detects the environment:
 - Test connectivity: `curl http://localhost:8001/health`
 
 ### AWS Issues
+
+**ECR login or push fails (400 Bad Request / no basic auth credentials):**
+- On Windows, run `aws ecr get-login-password ... | docker login ...` and `docker push` in **Command Prompt (CMD)**, not PowerShell. Then push in the same CMD window.
 
 **Services not starting:**
 - Check ECS service events in AWS Console

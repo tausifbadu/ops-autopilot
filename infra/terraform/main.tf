@@ -39,6 +39,11 @@ provider "aws" {
   }
 }
 
+# EMR service-linked role required for EMR cleanup
+resource "aws_iam_service_linked_role" "emr_cleanup" {
+  aws_service_name = "elasticmapreduce.amazonaws.com"
+}
+
 # Data sources
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
@@ -156,18 +161,20 @@ module "glue_csv_parquet" {
   temp_prefix      = "tmp/glue/"
 }
 
-module "emr_min" {
-  source = "./modules/emr_min"
+module "emr_stepfn" {
+  source = "./modules/emr_stepfn"
 
   environment        = var.environment
   script_bucket_name = module.s3.bucket_names["scripts"]
   script_key         = "glue-scripts/csv_to_parquet.py"
-  script_source_path = "${path.root}/emr-job-scripts/csv_to_parquet.py"
+  script_source_path = "${path.root}/emr-job-scripts/print-hello.py"
 
   data_bucket_name = module.s3.bucket_names["data"]
   input_prefix     = "raw/csv/"
   output_prefix    = "stage/parquet/"
   log_prefix       = "emr-logs/"
+
+  subnet_id = module.vpc.public_subnet_ids[0]
 }
 
 

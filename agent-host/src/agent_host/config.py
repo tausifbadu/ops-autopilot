@@ -112,7 +112,7 @@ class Config(BaseModel):
     
     # LLM Configuration
     llm_provider: str = Field(
-        default="bedrock",
+        default="openai",
         description="LLM provider: bedrock, openai, anthropic, gemini, grok",
     )
     llm_api_key: Optional[str] = Field(None, description="LLM API key (if needed)")

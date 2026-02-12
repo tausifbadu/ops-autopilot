@@ -207,6 +207,17 @@ module "data_catalog" {
   depends_on = [null_resource.reset_electric_raw]
 }
 
+module "emr_classic_notebook" {
+  source = "./modules/emr_classic_notebook"
+
+  environment          = var.environment
+  master_instance_type = "m5.xlarge"
+  core_instance_count  = 0
+  keep_cluster_alive   = true
+  subnet_id            = module.vpc.public_subnet_ids[0]
+  log_uri              = "s3://ops-autopilot-data/emr-logs/"
+}
+
 # ---------------------------------------------------------------------------
 # Synthetic electric-raw-dev data generator (runs only when data_version changes)
 # ---------------------------------------------------------------------------

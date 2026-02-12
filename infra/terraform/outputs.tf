@@ -45,3 +45,34 @@ output "glue_test_job_name" {
   description = "Glue test job name (run with: aws glue start-job-run --job-name <this value>)"
   value       = module.glue_test_job.job_name
 }
+
+# EMR Studio Cluster
+output "emr_studio_cluster_id" {
+  description = "EMR Studio cluster ID"
+  value       = module.emr_studio_cluster.cluster_id
+}
+
+output "emr_studio_url" {
+  description = "EMR Studio URL for Jupyter notebooks"
+  value       = module.emr_studio_cluster.studio_url
+}
+
+output "emr_studio_id" {
+  description = "EMR Studio ID"
+  value       = module.emr_studio_cluster.studio_id
+}
+
+output "emr_cluster_master_dns" {
+  description = "EMR cluster master node public DNS"
+  value       = module.emr_studio_cluster.cluster_master_public_dns
+}
+
+output "emr_studio_cluster_name" {
+  description = "EMR cluster name (for attaching to workspace in EMR Studio)"
+  value       = module.emr_studio_cluster.cluster_name
+}
+
+output "emr_studio_execution_role_arn" {
+  description = "Execution role ARN to select in EMR Studio workspace (EC2 cluster role)"
+  value       = module.emr_studio_cluster.emr_ec2_role_arn
+}

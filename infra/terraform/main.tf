@@ -207,15 +207,27 @@ module "data_catalog" {
   depends_on = [null_resource.reset_electric_raw]
 }
 
-module "emr_classic_notebook" {
-  source = "./modules/emr_classic_notebook"
+# EMR Studio Cluster - Single-node m5.xlarge with Jupyter via EMR Studio
+module "emr_studio_cluster" {
+  source = "./modules/emr_studio_cluster"
 
   environment          = var.environment
-  master_instance_type = "m5.xlarge"
-  core_instance_count  = 0
-  keep_cluster_alive   = true
-  subnet_id            = module.vpc.public_subnet_ids[0]
-  log_uri              = "s3://ops-autopilot-data/emr-logs/"
+  vpc_id                = module.vpc.vpc_id
+  subnet_id             = module.vpc.public_subnet_ids[0]
+  studio_subnet_ids     = module.vpc.public_subnet_ids
+  data_bucket_name      = module.s3.bucket_names["data"]
+  log_prefix            = "emr-studio-logs/"
+  master_instance_type  = "m5.xlarge"
+
+  # Session mappings via Terraform (optional). Each identity gets Studio access + session policy (Runtime Role dropdown).
+  # Option A: single IAM user ID — studio_session_identity_id = "AIDAXXXXXXXX"
+  # Option B: multiple users/groups — studio_session_mappings = [
+  #   { identity_type = "USER", identity_id = "AIDAXXXXXXXX" },
+  #   { identity_type = "GROUP", identity_name = "emr-studio-users" },
+  # ]
+
+  # If attach fails with "notebook security group sg-xxx does not have ingress", add that SG ID here:
+  notebook_security_group_ids = ["sg-0269917657894b560"]
 }
 
 # ---------------------------------------------------------------------------

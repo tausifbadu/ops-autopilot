@@ -24,7 +24,8 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
 
   tags = {
-    Name = "${var.environment}-ops-autopilot-vpc"
+    Name                                        = "${var.environment}-ops-autopilot-vpc"
+    "for-use-with-amazon-emr-managed-policies"  = "true"
   }
 }
 
@@ -47,7 +48,8 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.environment}-ops-autopilot-public-${local.azs[count.index]}"
+    Name                                        = "${var.environment}-ops-autopilot-public-${local.azs[count.index]}"
+    "for-use-with-amazon-emr-managed-policies"  = "true"
   }
 }
 

@@ -198,6 +198,57 @@ module "emr_stepfn" {
   subnet_id = module.vpc.public_subnet_ids[0]
 }
 
+module "data_catalog" {
+  source = "./modules/data_catalog"
+
+  data_bucket_name = module.s3.bucket_names["data"]
+  database_name    = "electric-raw-dev"
+
+  depends_on = [null_resource.reset_electric_raw]
+}
+
+# ---------------------------------------------------------------------------
+# Synthetic electric-raw-dev data generator (runs only when data_version changes)
+# ---------------------------------------------------------------------------
+
+resource "null_resource" "reset_electric_raw" {
+  triggers = {
+    reset_version = "v2"
+  }
+
+  provisioner "local-exec" {
+    command = "powershell -Command \"$ErrorActionPreference='Continue'; aws s3 rm s3://ops-autopilot-data/raw/electric-raw-dev/ --recursive; foreach ($t in @('customer','customer_agreement_table','meter','meter_geo_location','meter_usage','transformer_table','transformer_meter_mapping','transformer_geo_location','customer_meter_mapping')) { aws glue delete-table --database-name electric-raw-dev --name $t 2>$null; if ($LASTEXITCODE -ne 0) { $LASTEXITCODE = 0 } }; exit 0\""
+    working_dir = path.module
+  }
+}
+
+resource "null_resource" "generate_electric_raw" {
+  triggers = {
+    data_version = "v2"
+    tables       = "all"
+  }
+
+  provisioner "local-exec" {
+    command     = "python scripts/generate_electric_raw.py --out generated/electric-raw-dev --max-rows 10000 --max-mb 100 --tables ${self.triggers.tables}"
+    working_dir = path.module
+  }
+
+  depends_on = [null_resource.reset_electric_raw]
+}
+
+locals {
+  electric_raw_files = fileset("${path.module}/generated/electric-raw-dev", "**/*.parquet")
+}
+
+resource "aws_s3_object" "electric_raw" {
+  for_each = toset(local.electric_raw_files)
+
+  bucket = "ops-autopilot-data"
+  key    = "raw/electric-raw-dev/${each.value}"
+  source = "${path.module}/generated/electric-raw-dev/${each.value}"
+
+  depends_on = [null_resource.generate_electric_raw]
+}
 
 module "pipeline_event_transformer" {
    source = "./modules/pipeline-event-transformer"

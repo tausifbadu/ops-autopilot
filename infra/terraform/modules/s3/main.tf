@@ -111,7 +111,8 @@ resource "aws_s3_object" "folders" {
     "raw/",
     "curated/",
     "stage/",
-    "stage/parquet/"
+    "stage/parquet/",
+    "athena-results/"
   ])
 
   bucket = aws_s3_bucket.ops_autopilot_storage.id

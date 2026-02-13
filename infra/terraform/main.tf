@@ -208,17 +208,17 @@ module "data_catalog" {
 }
 
 # EMR Studio Cluster - Single-node m5.xlarge with Jupyter via EMR Studio
-module "emr_studio_cluster" {
-  source = "./modules/emr_studio_cluster"
-
-  environment          = var.environment
-  vpc_id                = module.vpc.vpc_id
-  subnet_id             = module.vpc.public_subnet_ids[0]
-  studio_subnet_ids     = module.vpc.public_subnet_ids
-  data_bucket_name      = module.s3.bucket_names["data"]
-  log_prefix            = "emr-studio-logs/"
-  master_instance_type  = "m5.xlarge"
-
+#module "emr_studio_cluster" {
+#  source = "./modules/emr_studio_cluster"
+#
+#  environment          = var.environment
+#  vpc_id                = module.vpc.vpc_id
+#  subnet_id             = module.vpc.public_subnet_ids[0]
+#  studio_subnet_ids     = module.vpc.public_subnet_ids
+#  data_bucket_name      = module.s3.bucket_names["data"]
+#  log_prefix            = "emr-studio-logs/"
+#  master_instance_type  = "m5.xlarge"
+#
   # Session mappings via Terraform (optional). Each identity gets Studio access + session policy (Runtime Role dropdown).
   # Option A: single IAM user ID — studio_session_identity_id = "AIDAXXXXXXXX"
   # Option B: multiple users/groups — studio_session_mappings = [
@@ -227,8 +227,8 @@ module "emr_studio_cluster" {
   # ]
 
   # If attach fails with "notebook security group sg-xxx does not have ingress", add that SG ID here:
-  notebook_security_group_ids = ["sg-0269917657894b560"]
-}
+#  notebook_security_group_ids = ["sg-0269917657894b560"]
+#}
 
 # ---------------------------------------------------------------------------
 # Synthetic electric-raw-dev data generator (runs only when data_version changes)

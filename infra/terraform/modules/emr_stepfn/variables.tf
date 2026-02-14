@@ -16,6 +16,19 @@ variable "script_key" {
 variable "script_source_path" {
   type        = string
   description = "Local path to the EMR script to upload."
+  default     = null
+}
+
+variable "script_s3_path" {
+  type        = string
+  default     = null
+  description = "Full s3://... path to the EMR script when not uploading."
+}
+
+variable "upload_script" {
+  type        = bool
+  default     = true
+  description = "If true, upload script from script_source_path; otherwise use script_s3_path."
 }
 
 variable "data_bucket_name" {
@@ -44,7 +57,7 @@ variable "log_prefix" {
 
 variable "release_label" {
   type        = string
-  default     = "emr-6.10.0"
+  default     = "emr-6.15.0"
   description = "EMR release label."
 }
 
@@ -64,6 +77,12 @@ variable "step_name" {
   type        = string
   default     = null
   description = "Override EMR step name."
+}
+
+variable "step_args" {
+  type        = list(string)
+  default     = []
+  description = "Additional arguments passed to spark-submit after the script path."
 }
 
 variable "master_instance_type" {

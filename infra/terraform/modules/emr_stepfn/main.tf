@@ -10,17 +10,37 @@ locals {
   cluster_name = var.cluster_name != null && var.cluster_name != "" ? var.cluster_name : "${var.environment}-ops-autopilot-emr"
   step_name    = var.step_name != null && var.step_name != "" ? var.step_name : "${var.environment}-ops-autopilot-emr-csv-to-parquet"
   sfn_name     = var.state_machine_name != null && var.state_machine_name != "" ? var.state_machine_name : "${var.environment}-ops-autopilot-emr-stepfn"
+
+  script_path = var.upload_script ? "s3://${var.script_bucket_name}/${var.script_key}" : var.script_s3_path
+  step_args   = length(var.step_args) > 0 ? var.step_args : [
+    "--JOB_NAME",
+    local.step_name,
+    "--INPUT_PATH",
+    local.input_path,
+    "--OUTPUT_PATH",
+    local.output_path
+  ]
+}
+
+resource "random_id" "emr_role_suffix" {
+  keepers = {
+    environment = var.environment
+    sfn_name    = local.sfn_name
+  }
+
+  byte_length = 3
 }
 
 resource "aws_s3_object" "script" {
+  count  = var.upload_script ? 1 : 0
   bucket = var.script_bucket_name
   key    = var.script_key
-  source = var.script_source_path
-  etag   = filemd5(var.script_source_path)
+  source = var.upload_script ? var.script_source_path : null
+  etag   = var.upload_script ? filemd5(var.script_source_path) : null
 }
 
 resource "aws_iam_role" "emr_service" {
-  name = "${var.environment}-ops-autopilot-emr-service"
+  name = "${var.environment}-ops-autopilot-emr-service-${random_id.emr_role_suffix.hex}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -42,7 +62,7 @@ resource "aws_iam_role_policy_attachment" "emr_service_role" {
 }
 
 resource "aws_iam_role" "emr_ec2" {
-  name = "${var.environment}-ops-autopilot-emr-ec2"
+  name = "${var.environment}-ops-autopilot-emr-ec2-${random_id.emr_role_suffix.hex}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -100,7 +120,7 @@ data "aws_iam_policy_document" "emr_ec2_s3" {
 }
 
 resource "aws_iam_instance_profile" "emr_ec2" {
-  name = "${var.environment}-ops-autopilot-emr-ec2"
+  name = "${var.environment}-ops-autopilot-emr-ec2-${random_id.emr_role_suffix.hex}"
   role = aws_iam_role.emr_ec2.name
 }
 
@@ -182,26 +202,31 @@ module "stepfn" {
           "ClusterId.$" = "$.cluster.ClusterId"
           Step = {
             Name              = local.step_name
-            ActionOnFailure   = "CONTINUE"
+            ActionOnFailure   = "TERMINATE_CLUSTER"
             HadoopJarStep = {
               Jar  = "command-runner.jar"
-              Args = [
-                "spark-submit",
-                "--deploy-mode",
-                "cluster",
-                "s3://${var.script_bucket_name}/${aws_s3_object.script.key}",
-                "--JOB_NAME",
-                local.step_name,
-                "--INPUT_PATH",
-                local.input_path,
-                "--OUTPUT_PATH",
-                local.output_path
-              ]
+              Args = concat(
+                [
+                  "spark-submit",
+                  "--deploy-mode",
+                  "cluster",
+                  local.script_path
+                ],
+                local.step_args
+              )
             }
           }
         }
         ResultPath = "$.step"
-        End        = true
+        Next       = "TerminateCluster"
+      }
+      TerminateCluster = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::elasticmapreduce:terminateCluster"
+        Parameters = {
+          "ClusterId.$" = "$.cluster.ClusterId"
+        }
+        End = true
       }
     }
   })

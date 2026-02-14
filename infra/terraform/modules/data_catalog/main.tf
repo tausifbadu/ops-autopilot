@@ -14,6 +14,10 @@ resource "aws_glue_catalog_database" "electric_raw_dev" {
   name = var.database_name
 }
 
+resource "aws_glue_catalog_database" "electric_curated_dev" {
+  name = var.curated_database_name
+}
+
 resource "aws_glue_catalog_table" "customer" {
   name          = "customer"
   database_name = aws_glue_catalog_database.electric_raw_dev.name
@@ -376,6 +380,156 @@ resource "aws_glue_catalog_table" "meter_usage" {
     columns {
       name = "load_date"
       type = "date"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "int"
+  }
+  partition_keys {
+    name = "month"
+    type = "int"
+  }
+  partition_keys {
+    name = "day"
+    type = "int"
+  }
+}
+
+resource "aws_glue_catalog_table" "customer_usage_curated" {
+  name          = "customer_usage_curated"
+  database_name = aws_glue_catalog_database.electric_curated_dev.name
+  table_type    = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.data_bucket_name}/curated/customer_usage_curated/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "parquet_serde"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+    }
+
+    columns {
+      name = "customer_id"
+      type = "string"
+    }
+    columns {
+      name = "first_name"
+      type = "string"
+    }
+    columns {
+      name = "last_name"
+      type = "string"
+    }
+    columns {
+      name = "email"
+      type = "string"
+    }
+    columns {
+      name = "city"
+      type = "string"
+    }
+    columns {
+      name = "state"
+      type = "string"
+    }
+    columns {
+      name = "postal_code"
+      type = "string"
+    }
+    columns {
+      name = "meter_id"
+      type = "string"
+    }
+    columns {
+      name = "usage_ts"
+      type = "timestamp"
+    }
+    columns {
+      name = "usage_date"
+      type = "date"
+    }
+    columns {
+      name = "interval_minutes"
+      type = "int"
+    }
+    columns {
+      name = "kwh"
+      type = "double"
+    }
+    columns {
+      name = "agreement_id"
+      type = "string"
+    }
+    columns {
+      name = "plan_type"
+      type = "string"
+    }
+    columns {
+      name = "contract_status"
+      type = "string"
+    }
+    columns {
+      name = "contract_start_date"
+      type = "date"
+    }
+    columns {
+      name = "contract_end_date"
+      type = "date"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "int"
+  }
+  partition_keys {
+    name = "month"
+    type = "int"
+  }
+  partition_keys {
+    name = "day"
+    type = "int"
+  }
+}
+
+resource "aws_glue_catalog_table" "customer_daily_usage" {
+  name          = "customer_daily_usage"
+  database_name = aws_glue_catalog_database.electric_curated_dev.name
+  table_type    = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.data_bucket_name}/curated/customer_daily_usage/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "parquet_serde"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+    }
+
+    columns {
+      name = "customer_id"
+      type = "string"
+    }
+    columns {
+      name = "usage_date"
+      type = "date"
+    }
+    columns {
+      name = "total_kwh"
+      type = "double"
+    }
+    columns {
+      name = "peak_kwh"
+      type = "double"
+    }
+    columns {
+      name = "avg_kwh"
+      type = "double"
     }
   }
 

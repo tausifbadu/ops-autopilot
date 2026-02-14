@@ -221,6 +221,35 @@ module "glue_generate_electric_raw" {
   tables           = "all"
 }
 
+# Step Function: EMR classic cluster -> run customer_daily_usage -> terminate
+module "emr_stepfn_customer_daily_usage" {
+  source = "./modules/emr_stepfn"
+
+  environment        = var.environment
+  script_bucket_name = module.s3.bucket_names["scripts"]
+  script_key         = "emr-scripts/customer_daily_usage.py"
+  script_source_path = "${path.root}/emr-scripts/customer_daily_usage.py"
+  upload_script      = true
+
+  data_bucket_name = module.s3.bucket_names["data"]
+  input_prefix     = "raw/electric-raw-dev/"
+  output_prefix    = "curated/customer_daily_usage/"
+  log_prefix       = "emr-logs/"
+
+  release_label        = "emr-6.15.0"
+  master_instance_type = "m5.xlarge"
+  subnet_id            = module.vpc.public_subnet_ids[0]
+
+  state_machine_name = "${var.environment}-ops-autopilot-emr-stepfn-customer-daily-usage"
+  cluster_name       = "${var.environment}-ops-autopilot-emr-customer-daily-usage"
+  step_name          = "customer_daily_usage"
+  step_args = [
+    "--JOB_NAME", "customer_daily_usage",
+    "--INPUT_PATH", "s3://ops-autopilot-data/raw/electric-raw-dev/",
+    "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/customer_daily_usage/"
+  ]
+}
+
 # module "emr_studio_cluster" {
 #   source = "./modules/emr_studio_cluster"
 #

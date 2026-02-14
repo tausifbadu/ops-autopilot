@@ -546,3 +546,54 @@ resource "aws_glue_catalog_table" "customer_daily_usage" {
     type = "int"
   }
 }
+
+resource "aws_glue_catalog_table" "transformer_daily_usage" {
+  name          = "transformer_daily_usage"
+  database_name = aws_glue_catalog_database.electric_curated_dev.name
+  table_type    = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.data_bucket_name}/curated/transformer_daily_usage/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "parquet_serde"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+    }
+
+    columns {
+      name = "transformer_id"
+      type = "string"
+    }
+    columns {
+      name = "usage_date"
+      type = "date"
+    }
+    columns {
+      name = "total_kwh"
+      type = "double"
+    }
+    columns {
+      name = "peak_kwh"
+      type = "double"
+    }
+    columns {
+      name = "avg_kwh"
+      type = "double"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "int"
+  }
+  partition_keys {
+    name = "month"
+    type = "int"
+  }
+  partition_keys {
+    name = "day"
+    type = "int"
+  }
+}

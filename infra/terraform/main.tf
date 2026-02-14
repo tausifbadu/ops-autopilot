@@ -248,7 +248,20 @@ module "emr_stepfn_customer_daily_usage" {
     "--INPUT_PATH", "s3://ops-autopilot-data/raw/electric-raw-dev/",
     "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/customer_daily_usage/"
   ]
+
+  second_step_enabled      = true
+  second_step_name         = "transformer_daily_usage"
+  second_script_key        = "emr-scripts/transformer_daily_usage.py"
+  second_script_source_path = "${path.root}/emr-scripts/transformer_daily_usage.py"
+  second_upload_script     = true
+  second_step_args = [
+    "--JOB_NAME", "transformer_daily_usage",
+    "--INPUT_PATH", "s3://ops-autopilot-data/raw/electric-raw-dev/",
+    "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/transformer_daily_usage/"
+  ]
 }
+
+# Step Function: EMR classic cluster -> run transformer_daily_usage -> terminate
 
 # module "emr_studio_cluster" {
 #   source = "./modules/emr_studio_cluster"

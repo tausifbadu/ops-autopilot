@@ -20,6 +20,46 @@ locals {
     "--OUTPUT_PATH",
     local.output_path
   ]
+
+  second_step_name = var.second_step_name != null && var.second_step_name != "" ? var.second_step_name : "${local.step_name}-step2"
+  second_script_path = var.second_step_enabled ? (
+    var.second_upload_script ? "s3://${var.script_bucket_name}/${var.second_script_key}" : var.second_script_s3_path
+  ) : null
+  has_second_step = var.second_step_enabled
+
+  addstep2_task = {
+    Type     = "Task"
+    Resource = "arn:aws:states:::elasticmapreduce:addStep.sync"
+    Parameters = {
+      "ClusterId.$" = "$.cluster.ClusterId"
+      Step = {
+        Name            = local.second_step_name
+        ActionOnFailure = "TERMINATE_CLUSTER"
+        HadoopJarStep = {
+          Jar  = "command-runner.jar"
+          Args = concat(
+            [
+              "spark-submit",
+              "--deploy-mode",
+              "cluster",
+              local.second_script_path
+            ],
+            var.second_step_args
+          )
+        }
+      }
+    }
+    ResultPath = "$.step2"
+    Next       = "TerminateCluster"
+  }
+  addstep2_pass = {
+    Type = "Pass"
+    Next = "TerminateCluster"
+  }
+
+  addstep2_state_map = jsondecode(
+    local.has_second_step ? jsonencode({ AddStep2 = local.addstep2_task }) : jsonencode({ AddStep2 = local.addstep2_pass })
+  )
 }
 
 resource "random_id" "emr_role_suffix" {
@@ -37,6 +77,14 @@ resource "aws_s3_object" "script" {
   key    = var.script_key
   source = var.upload_script ? var.script_source_path : null
   etag   = var.upload_script ? filemd5(var.script_source_path) : null
+}
+
+resource "aws_s3_object" "script2" {
+  count  = var.second_step_enabled && var.second_upload_script ? 1 : 0
+  bucket = var.script_bucket_name
+  key    = var.second_script_key
+  source = var.second_script_source_path
+  etag   = filemd5(var.second_script_source_path)
 }
 
 resource "aws_iam_role" "emr_service" {
@@ -155,80 +203,85 @@ module "stepfn" {
   name       = local.sfn_name
   definition = jsonencode({
     StartAt = "CreateCluster"
-    States = {
-      CreateCluster = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::elasticmapreduce:createCluster"
-        Parameters = {
-          Name         = local.cluster_name
-          ReleaseLabel = var.release_label
-          Applications = [
-            { Name = "Spark" }
-          ]
-          ServiceRole = aws_iam_role.emr_service.arn
-          JobFlowRole = aws_iam_instance_profile.emr_ec2.name
-          LogUri      = local.log_uri
-          VisibleToAllUsers = true
-          Configurations = [
-            {
-              Classification = "yarn-site"
-              Properties = {
-                "yarn.log-aggregation-enable" = "true"
-                "yarn.log-aggregation.retain-seconds" = "604800"
-              }
-            }
-          ]
-          Instances = {
-            Ec2SubnetId = var.subnet_id
-            KeepJobFlowAliveWhenNoSteps = true
-            InstanceGroups = [
+    States = merge(
+      {
+        CreateCluster = {
+          Type     = "Task"
+          Resource = "arn:aws:states:::elasticmapreduce:createCluster"
+          Parameters = {
+            Name         = local.cluster_name
+            ReleaseLabel = var.release_label
+            Applications = [
+              { Name = "Spark" }
+            ]
+            ServiceRole = aws_iam_role.emr_service.arn
+            JobFlowRole = aws_iam_instance_profile.emr_ec2.name
+            LogUri      = local.log_uri
+            VisibleToAllUsers = true
+            Configurations = [
               {
-                Name          = "Master nodes"
-                InstanceRole  = "MASTER"
-                InstanceType  = var.master_instance_type
-                InstanceCount = 1
-                Market        = "ON_DEMAND"
+                Classification = "yarn-site"
+                Properties = {
+                  "yarn.log-aggregation-enable" = "true"
+                  "yarn.log-aggregation.retain-seconds" = "604800"
+                }
               }
             ]
-          }
-        }
-        ResultPath = "$.cluster"
-        Next       = "AddStep"
-      }
-      AddStep = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::elasticmapreduce:addStep.sync"
-        Parameters = {
-          "ClusterId.$" = "$.cluster.ClusterId"
-          Step = {
-            Name              = local.step_name
-            ActionOnFailure   = "TERMINATE_CLUSTER"
-            HadoopJarStep = {
-              Jar  = "command-runner.jar"
-              Args = concat(
-                [
-                  "spark-submit",
-                  "--deploy-mode",
-                  "cluster",
-                  local.script_path
-                ],
-                local.step_args
-              )
+            Instances = {
+              Ec2SubnetId = var.subnet_id
+              KeepJobFlowAliveWhenNoSteps = true
+              InstanceGroups = [
+                {
+                  Name          = "Master nodes"
+                  InstanceRole  = "MASTER"
+                  InstanceType  = var.master_instance_type
+                  InstanceCount = 1
+                  Market        = "ON_DEMAND"
+                }
+              ]
             }
           }
+          ResultPath = "$.cluster"
+          Next       = "AddStep"
         }
-        ResultPath = "$.step"
-        Next       = "TerminateCluster"
-      }
-      TerminateCluster = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::elasticmapreduce:terminateCluster"
-        Parameters = {
-          "ClusterId.$" = "$.cluster.ClusterId"
+        AddStep = {
+          Type     = "Task"
+          Resource = "arn:aws:states:::elasticmapreduce:addStep.sync"
+          Parameters = {
+            "ClusterId.$" = "$.cluster.ClusterId"
+            Step = {
+              Name            = local.step_name
+              ActionOnFailure = "TERMINATE_CLUSTER"
+              HadoopJarStep = {
+                Jar  = "command-runner.jar"
+                Args = concat(
+                  [
+                    "spark-submit",
+                    "--deploy-mode",
+                    "cluster",
+                    local.script_path
+                  ],
+                  local.step_args
+                )
+              }
+            }
+          }
+          ResultPath = "$.step"
+          Next       = "AddStep2"
         }
-        End = true
+      },
+      local.addstep2_state_map,
+      {
+        TerminateCluster = {
+          Type     = "Task"
+          Resource = "arn:aws:states:::elasticmapreduce:terminateCluster"
+          Parameters = {
+            "ClusterId.$" = "$.cluster.ClusterId"
+          }
+          End = true
+        }
       }
-    }
+    )
   })
   policy_json = data.aws_iam_policy_document.sfn_emr.json
   tags = {

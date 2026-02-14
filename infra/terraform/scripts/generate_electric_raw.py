@@ -166,6 +166,7 @@ def generate_meters(n: int):
         rows.append({
             "meter_id": str(uuid.uuid4()),
             "meter_type": random.choice(METER_TYPES),
+            "interval_minutes": random.choice([15, 30]),
             "install_date": date(2019, 1, 1) + timedelta(days=random.randint(0, 2000)),
             "status": random.choice(["active", "inactive"]),
             "manufacturer": random.choice(["GE", "Siemens", "ABB", "Schneider"]),
@@ -224,25 +225,43 @@ def generate_mapping(left_ids, right_ids, start_date):
     return pd.DataFrame(rows)
 
 
-def generate_meter_usage(eligible_meter_ids, max_rows: int):
+def generate_meter_usage(meters: pd.DataFrame, eligible_meter_ids, max_rows: int | None):
     rows = []
-    start = datetime(2026, 1, 1, 0, 0, 0)
-    end = datetime(2026, 1, 31, 23, 59, 59)
     meters_list = list(eligible_meter_ids)
     if not meters_list:
         raise ValueError("No eligible meters for usage generation.")
 
-    while len(rows) < max_rows:
-        meter_id = random.choice(meters_list)
-        interval = random.choice([15, 30])
-        ts = start + timedelta(minutes=random.randint(0, int((end - start).total_seconds() / 60)))
-        rows.append({
-            "meter_id": meter_id,
-            "timestamp": ts,
-            "interval_minutes": interval,
-            "kwh": round(random.uniform(0.1, 5.0), 3),
-            "quality_flag": random.choice(QUALITY_FLAGS),
-        })
+    meter_intervals = {
+        row["meter_id"]: int(row["interval_minutes"])
+        for _, row in meters.iterrows()
+        if row["meter_id"] in meters_list
+    }
+
+    days = [date(2026, 1, d) for d in range(1, 32)]
+
+    for meter_id in meters_list:
+        interval = meter_intervals.get(meter_id)
+        if interval not in (15, 30):
+            continue
+
+        per_day = 96 if interval == 15 else 48
+        rows_needed = per_day * len(days)
+        if max_rows is not None and len(rows) + rows_needed > max_rows:
+            break
+
+        for day in days:
+            # Central Time timestamps (stored as naive local time).
+            start_dt = datetime(day.year, day.month, day.day, 0, 0, 0)
+            for i in range(per_day):
+                ts = start_dt + timedelta(minutes=interval * i)
+                rows.append({
+                    "meter_id": meter_id,
+                    "timestamp": ts,
+                    "interval_minutes": interval,
+                    "kwh": round(random.uniform(0.1, 5.0), 3),
+                    "load_date": datetime.utcnow().date(),
+                })
+
     return pd.DataFrame(rows)
 
 
@@ -322,7 +341,7 @@ def main():
         eligible_meters = customer_meter[customer_meter["customer_id"].isin(active_customer_ids)]
         eligible_meter_ids = set(eligible_meters["meter_id"].tolist())
 
-        usage = generate_meter_usage(eligible_meter_ids, row_cap)
+        usage = generate_meter_usage(meters, eligible_meter_ids, None)
         usage["year"] = usage["timestamp"].dt.year
         usage["month"] = usage["timestamp"].dt.month
         usage["day"] = usage["timestamp"].dt.day

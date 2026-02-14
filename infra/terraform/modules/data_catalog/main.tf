@@ -142,6 +142,10 @@ resource "aws_glue_catalog_table" "meter" {
       type = "string"
     }
     columns {
+      name = "interval_minutes"
+      type = "int"
+    }
+    columns {
       name = "meter_type"
       type = "string"
     }
@@ -370,8 +374,8 @@ resource "aws_glue_catalog_table" "meter_usage" {
       type = "double"
     }
     columns {
-      name = "quality_flag"
-      type = "string"
+      name = "load_date"
+      type = "date"
     }
   }
 

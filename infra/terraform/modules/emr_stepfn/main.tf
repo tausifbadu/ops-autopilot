@@ -27,6 +27,18 @@ locals {
   ) : null
   has_second_step = var.second_step_enabled
 
+  third_step_name = var.third_step_name != null && var.third_step_name != "" ? var.third_step_name : "${local.step_name}-step3"
+  third_script_path = var.third_step_enabled ? (
+    var.third_upload_script ? "s3://${var.script_bucket_name}/${var.third_script_key}" : var.third_script_s3_path
+  ) : null
+  has_third_step = var.third_step_enabled
+
+  fourth_step_name = var.fourth_step_name != null && var.fourth_step_name != "" ? var.fourth_step_name : "${local.step_name}-step4"
+  fourth_script_path = var.fourth_step_enabled ? (
+    var.fourth_upload_script ? "s3://${var.script_bucket_name}/${var.fourth_script_key}" : var.fourth_script_s3_path
+  ) : null
+  has_fourth_step = var.fourth_step_enabled
+
   addstep2_task = {
     Type     = "Task"
     Resource = "arn:aws:states:::elasticmapreduce:addStep.sync"
@@ -50,15 +62,83 @@ locals {
       }
     }
     ResultPath = "$.step2"
-    Next       = "TerminateCluster"
+    Next       = "AddStep3"
   }
   addstep2_pass = {
     Type = "Pass"
-    Next = "TerminateCluster"
+    Next = "AddStep3"
   }
 
   addstep2_state_map = jsondecode(
     local.has_second_step ? jsonencode({ AddStep2 = local.addstep2_task }) : jsonencode({ AddStep2 = local.addstep2_pass })
+  )
+
+  addstep3_task = {
+    Type     = "Task"
+    Resource = "arn:aws:states:::elasticmapreduce:addStep.sync"
+    Parameters = {
+      "ClusterId.$" = "$.cluster.ClusterId"
+      Step = {
+        Name            = local.third_step_name
+        ActionOnFailure = "TERMINATE_CLUSTER"
+        HadoopJarStep = {
+          Jar  = "command-runner.jar"
+          Args = concat(
+            [
+              "spark-submit",
+              "--deploy-mode",
+              "cluster",
+              local.third_script_path
+            ],
+            var.third_step_args
+          )
+        }
+      }
+    }
+    ResultPath = "$.step3"
+    Next       = "AddStep4"
+  }
+  addstep3_pass = {
+    Type = "Pass"
+    Next = "AddStep4"
+  }
+
+  addstep3_state_map = jsondecode(
+    local.has_third_step ? jsonencode({ AddStep3 = local.addstep3_task }) : jsonencode({ AddStep3 = local.addstep3_pass })
+  )
+
+  addstep4_task = {
+    Type     = "Task"
+    Resource = "arn:aws:states:::elasticmapreduce:addStep.sync"
+    Parameters = {
+      "ClusterId.$" = "$.cluster.ClusterId"
+      Step = {
+        Name            = local.fourth_step_name
+        ActionOnFailure = "TERMINATE_CLUSTER"
+        HadoopJarStep = {
+          Jar  = "command-runner.jar"
+          Args = concat(
+            [
+              "spark-submit",
+              "--deploy-mode",
+              "cluster",
+              local.fourth_script_path
+            ],
+            var.fourth_step_args
+          )
+        }
+      }
+    }
+    ResultPath = "$.step4"
+    Next       = "TerminateCluster"
+  }
+  addstep4_pass = {
+    Type = "Pass"
+    Next = "TerminateCluster"
+  }
+
+  addstep4_state_map = jsondecode(
+    local.has_fourth_step ? jsonencode({ AddStep4 = local.addstep4_task }) : jsonencode({ AddStep4 = local.addstep4_pass })
   )
 }
 
@@ -85,6 +165,22 @@ resource "aws_s3_object" "script2" {
   key    = var.second_script_key
   source = var.second_script_source_path
   etag   = filemd5(var.second_script_source_path)
+}
+
+resource "aws_s3_object" "script3" {
+  count  = var.third_step_enabled && var.third_upload_script ? 1 : 0
+  bucket = var.script_bucket_name
+  key    = var.third_script_key
+  source = var.third_script_source_path
+  etag   = filemd5(var.third_script_source_path)
+}
+
+resource "aws_s3_object" "script4" {
+  count  = var.fourth_step_enabled && var.fourth_upload_script ? 1 : 0
+  bucket = var.script_bucket_name
+  key    = var.fourth_script_key
+  source = var.fourth_script_source_path
+  etag   = filemd5(var.fourth_script_source_path)
 }
 
 resource "aws_iam_role" "emr_service" {
@@ -137,6 +233,12 @@ resource "aws_iam_role_policy" "emr_ec2_s3" {
   policy = data.aws_iam_policy_document.emr_ec2_s3.json
 }
 
+resource "aws_iam_role_policy" "emr_ec2_glue" {
+  name   = "glue-access"
+  role   = aws_iam_role.emr_ec2.id
+  policy = data.aws_iam_policy_document.emr_ec2_glue.json
+}
+
 data "aws_iam_policy_document" "emr_ec2_s3" {
   statement {
     effect = "Allow"
@@ -164,6 +266,23 @@ data "aws_iam_policy_document" "emr_ec2_s3" {
       "arn:aws:s3:::${var.data_bucket_name}",
       "arn:aws:s3:::${var.data_bucket_name}/*"
     ]
+  }
+}
+
+data "aws_iam_policy_document" "emr_ec2_glue" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "glue:GetDatabase",
+      "glue:GetDatabases",
+      "glue:GetTable",
+      "glue:GetTables",
+      "glue:GetPartition",
+      "glue:GetPartitions",
+      "glue:GetTableVersion",
+      "glue:GetTableVersions"
+    ]
+    resources = ["*"]
   }
 }
 
@@ -225,6 +344,24 @@ module "stepfn" {
                   "yarn.log-aggregation-enable" = "true"
                   "yarn.log-aggregation.retain-seconds" = "604800"
                 }
+              },
+              {
+                Classification = "hive-site"
+                Properties = {
+                  "hive.metastore.client.factory.class" = "com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory"
+                }
+              },
+              {
+                Classification = "spark-hive-site"
+                Properties = {
+                  "hive.metastore.client.factory.class" = "com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory"
+                }
+              },
+              {
+                Classification = "spark-defaults"
+                Properties = {
+                  "spark.sql.catalogImplementation" = "hive"
+                }
               }
             ]
             Instances = {
@@ -271,6 +408,8 @@ module "stepfn" {
         }
       },
       local.addstep2_state_map,
+      local.addstep3_state_map,
+      local.addstep4_state_map,
       {
         TerminateCluster = {
           Type     = "Task"

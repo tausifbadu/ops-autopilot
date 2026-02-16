@@ -157,6 +157,59 @@ output "agent_host_task_role_arn" {
   value = aws_iam_role.agent_host_task.arn
 }
 
+############################################
+# Glue Studio Notebook Role (full access)
+############################################
+resource "aws_iam_role" "glue_notebook" {
+  name = "${var.environment}-ops-autopilot-glue-notebook"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "glue.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "glue_notebook_service_role" {
+  role       = aws_iam_role.glue_notebook.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+}
+
+resource "aws_iam_role_policy_attachment" "glue_notebook_s3_full" {
+  role       = aws_iam_role.glue_notebook.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "glue_notebook_logs_full" {
+  role       = aws_iam_role.glue_notebook.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+}
+
+resource "aws_iam_role_policy" "glue_notebook_passrole" {
+  name = "${var.environment}-ops-autopilot-glue-notebook-passrole"
+  role = aws_iam_role.glue_notebook.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["iam:PassRole"]
+        Resource = aws_iam_role.glue_notebook.arn
+      }
+    ]
+  })
+}
+
+output "glue_notebook_role_arn" {
+  value = aws_iam_role.glue_notebook.arn
+}
+
 # Agent Host Task Role Policy
 resource "aws_iam_role_policy" "agent_host_task" {
   name = "${var.environment}-ops-autopilot-agent-host-task-policy"

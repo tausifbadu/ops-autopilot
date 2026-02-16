@@ -138,6 +138,46 @@ def generate_mapping(left_ids, right_ids, start_date):
     return pd.DataFrame(rows)
 
 
+def generate_customer_meter_mapping(customers: pd.DataFrame, meters: pd.DataFrame, start_date: date):
+    rows = []
+    meter_ids = meters["meter_id"].tolist()
+    random.shuffle(meter_ids)
+    if len(meter_ids) < len(customers):
+        raise ValueError("Not enough meters to assign one per customer.")
+    for i, row in customers.iterrows():
+        rows.append({
+            "customer_id": row["customer_id"],
+            "meter_id": meter_ids[i],
+            "effective_start": start_date + timedelta(days=random.randint(0, 30)),
+            "effective_end": None,
+        })
+    return pd.DataFrame(rows)
+
+
+def generate_transformer_meter_mapping(customers: pd.DataFrame, customer_meter: pd.DataFrame, transformers: pd.DataFrame, start_date: date):
+    # One transformer per ZIP: all meters in same ZIP map to the same transformer.
+    zip_codes = customers["postal_code"].unique().tolist()
+    transformer_ids = transformers["transformer_id"].tolist()
+    if len(transformer_ids) < len(zip_codes):
+        raise ValueError("Not enough transformers to assign one per ZIP code.")
+
+    random.shuffle(transformer_ids)
+    zip_to_transformer = {z: transformer_ids[i] for i, z in enumerate(zip_codes)}
+
+    cm = customer_meter.merge(customers[["customer_id", "postal_code"]], on="customer_id", how="left")
+    meter_zip = cm.drop_duplicates(subset=["meter_id"])[["meter_id", "postal_code"]]
+
+    rows = []
+    for _, row in meter_zip.iterrows():
+        rows.append({
+            "transformer_id": zip_to_transformer[row["postal_code"]],
+            "meter_id": row["meter_id"],
+            "effective_start": start_date + timedelta(days=random.randint(0, 30)),
+            "effective_end": None,
+        })
+    return pd.DataFrame(rows)
+
+
 def generate_meter_usage(meters: pd.DataFrame, eligible_meter_ids):
     rows = []
     meters_list = list(eligible_meter_ids)
@@ -218,20 +258,22 @@ def main():
     meters = generate_meters(min(10000, row_cap))
     meter_geo = generate_meter_geo(meters)
 
-    transformers = generate_transformers(min(10000, row_cap))
+    zip_count = customers["postal_code"].nunique()
+    transformers = generate_transformers(max(min(10000, row_cap), zip_count))
     transformer_geo = generate_transformer_geo(transformers)
 
-    transformer_meter = generate_mapping(
-        transformers["transformer_id"].tolist(),
-        meters["meter_id"].tolist(),
-        date(2025, 1, 1),
-    ).rename(columns={"left_id": "transformer_id", "right_id": "meter_id"})
-
-    customer_meter = generate_mapping(
-        customers["customer_id"].tolist(),
-        meters["meter_id"].tolist(),
+    customer_meter = generate_customer_meter_mapping(
+        customers,
+        meters,
         date(2025, 6, 1),
-    ).rename(columns={"left_id": "customer_id", "right_id": "meter_id"})
+    )
+
+    transformer_meter = generate_transformer_meter_mapping(
+        customers,
+        customer_meter,
+        transformers,
+        date(2025, 1, 1),
+    )
 
     selected = {t.strip() for t in args.tables.split(",")} if args.tables != "all" else "all"
 

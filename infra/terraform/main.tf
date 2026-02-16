@@ -259,6 +259,46 @@ module "emr_stepfn_customer_daily_usage" {
     "--INPUT_PATH", "s3://ops-autopilot-data/raw/electric-raw-dev/",
     "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/transformer_daily_usage/"
   ]
+
+  third_step_enabled       = true
+  third_step_name          = "transformer_hourly_usage"
+  third_script_key         = "emr-scripts/transformer_hourly_usage.py"
+  third_script_source_path = "${path.root}/emr-scripts/transformer_hourly_usage.py"
+  third_upload_script      = true
+  third_step_args = [
+    "--JOB_NAME", "transformer_hourly_usage",
+    "--INPUT_DB", "electric-raw-dev",
+    "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/transformer_hourly_usage/"
+  ]
+}
+
+# Step Function: EMR classic cluster -> update_meter_usage -> terminate
+module "emr_stepfn_update_meter_usage" {
+  source = "./modules/emr_stepfn"
+
+  environment        = var.environment
+  script_bucket_name = module.s3.bucket_names["scripts"]
+  script_key         = "emr-scripts/update_meter_usage.py"
+  script_source_path = "${path.root}/emr-scripts/update_meter_usage.py"
+  upload_script      = true
+
+  data_bucket_name = module.s3.bucket_names["data"]
+  input_prefix     = "raw/electric-raw-dev/"
+  output_prefix    = "raw/electric-raw-dev/"
+  log_prefix       = "emr-logs/"
+
+  release_label        = "emr-6.15.0"
+  master_instance_type = "m5.xlarge"
+  subnet_id            = module.vpc.public_subnet_ids[0]
+
+  state_machine_name = "${var.environment}-ops-autopilot-emr-stepfn-update-meter-usage"
+  cluster_name       = "${var.environment}-ops-autopilot-emr-update-meter-usage"
+  step_name          = "update_meter_usage"
+  step_args = [
+    "--JOB_NAME", "update_meter_usage",
+    "--UPDATE_PATH", "s3://ops-autopilot-data/raw/electric-raw-dev/updated_meter_result/",
+    "--OUTPUT_PATH", "s3://ops-autopilot-data/raw/electric-raw-dev/"
+  ]
 }
 
 # Step Function: EMR classic cluster -> run transformer_daily_usage -> terminate

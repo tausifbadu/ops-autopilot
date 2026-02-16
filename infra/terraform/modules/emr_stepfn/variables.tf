@@ -138,6 +138,112 @@ variable "second_upload_script" {
   description = "If true, upload second script; otherwise use second_script_s3_path."
 }
 
+variable "third_step_enabled" {
+  type        = bool
+  default     = false
+  description = "Enable a third EMR step in the same Step Function."
+  validation {
+    condition = !var.third_step_enabled || (
+      var.third_upload_script ? (
+        var.third_script_key != null && var.third_script_key != "" &&
+        var.third_script_source_path != null && var.third_script_source_path != ""
+      ) : (
+        var.third_script_s3_path != null && var.third_script_s3_path != ""
+      )
+    )
+    error_message = "When third_step_enabled is true, you must provide either third_script_key + third_script_source_path (if third_upload_script) or third_script_s3_path."
+  }
+}
+
+variable "third_step_name" {
+  type        = string
+  default     = null
+  description = "Override third EMR step name."
+}
+
+variable "third_step_args" {
+  type        = list(string)
+  default     = []
+  description = "Arguments for the third EMR step."
+}
+
+variable "third_script_key" {
+  type        = string
+  default     = null
+  description = "S3 key for the third EMR script."
+}
+
+variable "third_script_source_path" {
+  type        = string
+  default     = null
+  description = "Local path to the third EMR script to upload."
+}
+
+variable "third_script_s3_path" {
+  type        = string
+  default     = null
+  description = "Full s3://... path to the third EMR script when not uploading."
+}
+
+variable "third_upload_script" {
+  type        = bool
+  default     = true
+  description = "If true, upload third script; otherwise use third_script_s3_path."
+}
+
+variable "fourth_step_enabled" {
+  type        = bool
+  default     = false
+  description = "Enable a fourth EMR step in the same Step Function."
+  validation {
+    condition = !var.fourth_step_enabled || (
+      var.fourth_upload_script ? (
+        var.fourth_script_key != null && var.fourth_script_key != "" &&
+        var.fourth_script_source_path != null && var.fourth_script_source_path != ""
+      ) : (
+        var.fourth_script_s3_path != null && var.fourth_script_s3_path != ""
+      )
+    )
+    error_message = "When fourth_step_enabled is true, you must provide either fourth_script_key + fourth_script_source_path (if fourth_upload_script) or fourth_script_s3_path."
+  }
+}
+
+variable "fourth_step_name" {
+  type        = string
+  default     = null
+  description = "Override fourth EMR step name."
+}
+
+variable "fourth_step_args" {
+  type        = list(string)
+  default     = []
+  description = "Arguments for the fourth EMR step."
+}
+
+variable "fourth_script_key" {
+  type        = string
+  default     = null
+  description = "S3 key for the fourth EMR script."
+}
+
+variable "fourth_script_source_path" {
+  type        = string
+  default     = null
+  description = "Local path to the fourth EMR script to upload."
+}
+
+variable "fourth_script_s3_path" {
+  type        = string
+  default     = null
+  description = "Full s3://... path to the fourth EMR script when not uploading."
+}
+
+variable "fourth_upload_script" {
+  type        = bool
+  default     = true
+  description = "If true, upload fourth script; otherwise use fourth_script_s3_path."
+}
+
 variable "master_instance_type" {
   type        = string
   default     = "m5.xlarge"

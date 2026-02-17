@@ -276,6 +276,9 @@ resource "aws_emr_cluster" "notebook" {
   }
 
   keep_job_flow_alive_when_no_steps = true
+  auto_termination_policy {
+    idle_timeout = 3600
+  }
   termination_protection            = false
   visible_to_all_users              = true
 

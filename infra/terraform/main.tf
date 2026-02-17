@@ -331,7 +331,7 @@ module "emr_notebook" {
   log_prefix           = "emr-notebook-logs/"
   master_instance_type = "m5.xlarge"
   release_label        = "emr-6.15.0"
-  key_name             = "emr-notebook-key"
+  key_name             = "emr-keypair"
   ssh_allowed_cidrs    = ["0.0.0.0/0"]
 }
 

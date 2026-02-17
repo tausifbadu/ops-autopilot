@@ -25,23 +25,22 @@ def main():
 
     total_kwh_before_update = spark.sql(""" select sum(mu.kwh) 
                                         from `electric-raw-dev`.`meter_usage` as mu
-                                        left anti join `electric-raw-dev`.`updated_meter_result` as u
-                                            on mu.meter_id = u.meter_id 
+                                        left anti join `electric-raw-dev`.`updated_meter_reading` as u
+                                            on mu.meter_id = u.meter_id and mu.timestamp = u.timestamp
                                         where day = 20""").first()[0]
 
     updated_df = spark.sql(""" SELECT mu.meter_id, mu.timestamp, mu.interval_minutes, COALESCE(u.kwh, mu.kwh) AS kwh, mu.load_date, mu.year, mu.month, mu.day
                             FROM `electric-raw-dev`.`meter_usage` as mu
-                            LEFT JOIN `electric-raw-dev`.`updated_meter_result` as u
+                            LEFT JOIN `electric-raw-dev`.`updated_meter_reading` as u
                               ON mu.meter_id = u.meter_id AND mu.timestamp = u.timestamp
-                            WHERE mu.day = 20
-                            """)
+                            WHERE mu.day = 20""")
 
     updated_df.createOrReplaceTempView("updated_meter_view")
 
     total_kwh_after_update = spark.sql(""" select sum(uu.kwh) 
                                         from updated_meter_view as uu
-                                        left anti join `electric-raw-dev`.`updated_meter_result` as u
-                                            on uu.meter_id = u.meter_id
+                                        left anti join `electric-raw-dev`.`updated_meter_reading` as u
+                                            on uu.meter_id = u.meter_id and uu.timestamp = u.timestamp
                                         where day = 20""").first()[0]
 
     if total_kwh_before_update != total_kwh_after_update:

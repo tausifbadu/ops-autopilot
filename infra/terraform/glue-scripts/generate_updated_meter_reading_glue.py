@@ -1,4 +1,5 @@
 import argparse
+import random
 import sys
 from datetime import datetime, timedelta
 
@@ -9,7 +10,7 @@ from pyspark.context import SparkContext
 from pyspark.sql import functions as F
 from pyspark.sql.types import (
     StructType, StructField,
-    StringType, TimestampType, IntegerType, LongType, DoubleType, DateType
+    StringType, TimestampType, IntegerType, DoubleType, DateType
 )
 
 TARGET_METERS = [
@@ -60,11 +61,12 @@ def main():
     job.init(job_name, glue_args)
 
     args = parse_args()
+    random.seed(42)
 
     schema = StructType([
         StructField("meter_id", StringType(), True),
         StructField("timestamp", TimestampType(), True),
-        StructField("interval_minutes", LongType(), True),
+        StructField("interval_minutes", IntegerType(), True),
         StructField("kwh", DoubleType(), True),
         StructField("load_date", DateType(), True),
         StructField("year", IntegerType(), True),
@@ -85,7 +87,7 @@ def main():
                 str(meter_id),
                 ts,                      # Python datetime -> TimestampType
                 interval_minutes,         # int
-                float(round(0.1 + ((i % 20) * 0.11), 3)),
+                float(round(random.uniform(0.1, 5.0), 3)),
                 load_date,                # Python date -> DateType
                 int(args.target_year),
                 int(args.target_month),

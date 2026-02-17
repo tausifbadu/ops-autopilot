@@ -198,9 +198,17 @@ resource "aws_iam_role_policy" "glue_notebook_passrole" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["iam:PassRole"]
-        Resource = aws_iam_role.glue_notebook.arn
+        Effect = "Allow"
+        Action = ["iam:PassRole"]
+        Resource = [
+          aws_iam_role.glue_notebook.arn,
+          "arn:aws:iam::${var.account_id}:role/${var.environment}-ops-autopilot-glue-test-job"
+        ]
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "glue.amazonaws.com"
+          }
+        }
       }
     ]
   })

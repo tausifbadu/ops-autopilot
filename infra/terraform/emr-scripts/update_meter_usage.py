@@ -1,5 +1,5 @@
 import sys
-from pyspark.sql import SparkSession, functions as F
+from pyspark.sql import SparkSession
 
 
 def get_arg(flag: str) -> str:
@@ -13,7 +13,6 @@ def get_arg(flag: str) -> str:
 
 def main():
     job_name = get_arg("--JOB_NAME")
-    update_path = get_arg("--UPDATE_PATH").rstrip("/") + "/"
     output_path = get_arg("--OUTPUT_PATH").rstrip("/") + "/"
 
     spark = (
@@ -22,15 +21,12 @@ def main():
         .enableHiveSupport()
         .getOrCreate()
     )
-
-    updates = spark.read.parquet(update_path)
-    
-    updates.createOrReplaceTempView("updated_meter_result")
+    spark.conf.set("spark.sql.parquet.enableVectorizedReader", "false")
 
     total_kwh_before_update = spark.sql(""" select sum(mu.kwh) 
                                         from `electric-raw-dev`.`meter_usage` as mu
                                         left anti join `electric-raw-dev`.`updated_meter_result` as u
-                                            on mu.meter_id = u.meter_id
+                                            on mu.meter_id = u.meter_id 
                                         where day = 20""").first()[0]
 
     updated_df = spark.sql(""" SELECT mu.meter_id, mu.timestamp, mu.interval_minutes, COALESCE(u.kwh, mu.kwh) AS kwh, mu.load_date, mu.year, mu.month, mu.day

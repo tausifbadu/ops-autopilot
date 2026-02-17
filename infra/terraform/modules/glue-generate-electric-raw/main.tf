@@ -1,6 +1,7 @@
 locals {
   output_prefix = "${trimsuffix(var.output_prefix, "/")}/"
   job_name      = var.job_name != null && var.job_name != "" ? var.job_name : "${var.environment}-ops-autopilot-generate-electric-raw"
+  role_name     = var.role_name != null && var.role_name != "" ? var.role_name : "${var.environment}-ops-autopilot-glue-generate-raw"
 }
 
 resource "aws_s3_object" "script" {
@@ -11,7 +12,7 @@ resource "aws_s3_object" "script" {
 }
 
 resource "aws_iam_role" "glue" {
-  name = "${var.environment}-ops-autopilot-glue-generate-raw"
+  name = local.role_name
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

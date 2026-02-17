@@ -32,6 +32,27 @@ resource "aws_iam_role_policy_attachment" "glue_service" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
 }
 
+resource "aws_iam_role_policy" "glue_passrole_self" {
+  name = "passrole-self-for-glue"
+  role = aws_iam_role.glue.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["iam:PassRole"]
+        Resource = aws_iam_role.glue.arn
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "glue.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
 # Allow Glue to read the script from S3
 resource "aws_iam_role_policy" "glue_s3" {
   name   = "s3-script"

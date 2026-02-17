@@ -695,3 +695,54 @@ resource "aws_glue_catalog_table" "updated_meter_result" {
     type = "int"
   }
 }
+
+resource "aws_glue_catalog_table" "updated_meter_reading" {
+  name          = "updated_meter_reading"
+  database_name = aws_glue_catalog_database.electric_raw_dev.name
+  table_type    = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.data_bucket_name}/raw/electric-raw-dev/updated_meter_reading/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "parquet_serde"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+    }
+
+    columns {
+      name = "meter_id"
+      type = "string"
+    }
+    columns {
+      name = "timestamp"
+      type = "timestamp"
+    }
+    columns {
+      name = "interval_minutes"
+      type = "bigint"
+    }
+    columns {
+      name = "kwh"
+      type = "double"
+    }
+    columns {
+      name = "load_date"
+      type = "date"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "int"
+  }
+  partition_keys {
+    name = "month"
+    type = "int"
+  }
+  partition_keys {
+    name = "day"
+    type = "int"
+  }
+}

@@ -221,6 +221,22 @@ module "glue_generate_electric_raw" {
   tables           = "all"
 }
 
+module "glue_generate_updated_meter_reading" {
+  source = "./modules/glue-generate-electric-raw"
+
+  environment        = var.environment
+  script_bucket_name = module.s3.bucket_names["scripts"]
+  script_key         = "glue-scripts/generate_updated_meter_reading_glue.py"
+  script_source_path = "${path.root}/glue-scripts/generate_updated_meter_reading_glue.py"
+
+  data_bucket_name = module.s3.bucket_names["data"]
+  output_prefix    = "raw/electric-raw-dev"
+  max_rows         = 10000
+  tables           = "all"
+  job_name         = "${var.environment}-ops-autopilot-generate-updated-meter-reading"
+  role_name        = "${var.environment}-ops-autopilot-glue-generate-updated-meter-reading"
+}
+
 # Step Function: EMR classic cluster -> run customer_daily_usage -> terminate
 module "emr_stepfn_customer_daily_usage" {
   source = "./modules/emr_stepfn"

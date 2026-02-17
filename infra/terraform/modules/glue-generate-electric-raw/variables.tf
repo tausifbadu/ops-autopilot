@@ -47,6 +47,12 @@ variable "job_name" {
   description = "Override Glue job name."
 }
 
+variable "role_name" {
+  type        = string
+  default     = null
+  description = "Override IAM role name for the Glue job role."
+}
+
 variable "glue_version" {
   type        = string
   default     = "4.0"

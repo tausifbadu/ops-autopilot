@@ -46,6 +46,11 @@ output "glue_test_job_name" {
   value       = module.glue_test_job.job_name
 }
 
+output "glue_generate_updated_meter_reading_job_name" {
+  description = "Glue job name to generate updated_meter_reading (run with: aws glue start-job-run --job-name <this value>)"
+  value       = module.glue_generate_updated_meter_reading.job_name
+}
+
 # EMR Studio Cluster
 #output "emr_studio_cluster_id" {
 #  description = "EMR Studio cluster ID"

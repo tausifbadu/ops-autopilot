@@ -51,7 +51,28 @@ output "glue_generate_updated_meter_reading_job_name" {
   value       = module.glue_generate_updated_meter_reading.job_name
 }
 
-# EMR Studio Cluster
+# EMR Notebook Cluster
+output "emr_notebook_cluster_id" {
+  description = "EMR Notebook cluster ID"
+  value       = module.emr_notebook.cluster_id
+}
+
+output "emr_notebook_cluster_name" {
+  description = "EMR Notebook cluster name"
+  value       = module.emr_notebook.cluster_name
+}
+
+output "emr_notebook_master_dns" {
+  description = "EMR Notebook master node public DNS"
+  value       = module.emr_notebook.master_public_dns
+}
+
+output "emr_notebook_ec2_role_arn" {
+  description = "EMR Notebook EC2 role ARN"
+  value       = module.emr_notebook.emr_ec2_role_arn
+}
+
+# EMR Studio Cluster (commented out)
 #output "emr_studio_cluster_id" {
 #  description = "EMR Studio cluster ID"
 #  value       = module.emr_studio_cluster.cluster_id

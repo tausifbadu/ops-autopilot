@@ -317,7 +317,23 @@ module "emr_stepfn_update_meter_usage" {
   ]
 }
 
-# Step Function: EMR classic cluster -> run transformer_daily_usage -> terminate
+# ---------------------------------------------------------------------------
+# EMR Notebook Cluster - Single-node m5.xlarge with Spark + Livy + Jupyter
+# Access via EMR Console "Notebooks" tab or attach an EMR Studio workspace.
+# ---------------------------------------------------------------------------
+module "emr_notebook" {
+  source = "./modules/emr_classic_notebook"
+
+  environment          = var.environment
+  vpc_id               = module.vpc.vpc_id
+  subnet_id            = module.vpc.public_subnet_ids[0]
+  data_bucket_name     = module.s3.bucket_names["data"]
+  log_prefix           = "emr-notebook-logs/"
+  master_instance_type = "m5.xlarge"
+  release_label        = "emr-6.15.0"
+  key_name             = "emr-notebook-key"
+  ssh_allowed_cidrs    = ["0.0.0.0/0"]
+}
 
 # module "emr_studio_cluster" {
 #   source = "./modules/emr_studio_cluster"

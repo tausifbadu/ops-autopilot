@@ -14,16 +14,16 @@ from pyspark.sql.types import (
 )
 
 TARGET_METERS = [
-    ("51925845-d616-4481-88ce-832e1ed00863", 15),
-    ("fe635107-a078-4f05-a45b-a13d761f82fa", 15),
-    ("f241eb7e-6fc8-44c4-b816-d3b39d29edd8", 15),
-    ("7f386d71-f0be-45e4-af12-5bd79ee2fb3d", 15),
-    ("0a3c1c31-b01e-49fa-a09c-7236f9658ed1", 30),
-    ("05468681-18b0-4b66-8249-fd4c2d9f96d8", 30),
-    ("2f17129e-74b5-447d-9a7d-69a7afb9cb6d", 15),
-    ("1d86bb07-fced-4e8c-8d61-ac9d6fe728ea", 30),
-    ("9c967b58-4172-4066-b016-27c6fa516e31", 15),
-    ("35505444-9000-4dcc-965d-2ff85de60d4b", 30),
+    ("cbb74f22-9059-4fec-ae2a-1c4defdebc1a", 15),
+    ("16f7c12b-d97b-41e9-a04a-49b0c49b0fb6", 15),
+    ("b0ec0b81-d0ab-4853-8b3f-6b8634b0203d", 15),
+    ("9e1eadb5-c3df-4f5c-b1f2-cec2639a98e1", 15),
+    ("6e5a5eef-128d-449c-bfa8-26a2c59acf1c", 15),
+    ("8b49ebe1-e9d9-4601-a8c7-cc1b0ae3c76f", 30),
+    ("0d8f38b7-8359-4002-b9aa-dc0ddfa20c6d", 30),
+    ("8e0d1688-2121-4825-9fdc-ff532d61798d", 30),
+    ("41e06ced-5852-4ac3-aa66-c8317522d834", 30),
+    ("9713916f-9533-45fe-b554-8ff7897f06bc", 30),
 ]
 
 TARGET_TABLE = "updated_meter_reading"

@@ -721,7 +721,7 @@ resource "aws_glue_catalog_table" "updated_meter_reading" {
     }
     columns {
       name = "interval_minutes"
-      type = "bigint"
+      type = "int"
     }
     columns {
       name = "kwh"

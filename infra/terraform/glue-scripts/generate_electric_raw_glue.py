@@ -58,10 +58,19 @@ def as_df(spark: SparkSession, rows, schema: StructType):
 
 
 def write_parquet(df, path: str, partition_cols=None):
-    writer = df.write.mode("overwrite")
     if partition_cols:
-        writer = writer.partitionBy(*partition_cols)
-    writer.parquet(path)
+        (
+            df.write
+            .mode("overwrite")
+            .partitionBy(*partition_cols)
+            .parquet(path)
+        )
+    else:
+        (
+            df.coalesce(1).write
+            .mode("overwrite")
+            .parquet(path)
+        )
 
 
 def main():

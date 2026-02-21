@@ -238,31 +238,31 @@ module "glue_generate_updated_meter_reading" {
 }
 
 # Step Function: EMR classic cluster -> run customer_daily_usage -> terminate
-module "emr_stepfn_customer_daily_usage" {
+module "emr_stepn_transformer" {
   source = "./modules/emr_stepfn"
 
   environment        = var.environment
   script_bucket_name = module.s3.bucket_names["scripts"]
-  script_key         = "emr-scripts/customer_daily_usage.py"
-  script_source_path = "${path.root}/emr-scripts/customer_daily_usage.py"
+  script_key         = "emr-scripts/transformer_hourly_usage.py"
+  script_source_path = "${path.root}/emr-scripts/transformer_hourly_usage.py"
   upload_script      = true
 
   data_bucket_name = module.s3.bucket_names["data"]
   input_prefix     = "raw/electric-raw-dev/"
-  output_prefix    = "curated/customer_daily_usage/"
+  output_prefix    = "curated/transformer_hourly_usage/"
   log_prefix       = "emr-logs/"
 
   release_label        = "emr-6.15.0"
   master_instance_type = "m5.xlarge"
   subnet_id            = module.vpc.public_subnet_ids[0]
 
-  state_machine_name = "${var.environment}-ops-autopilot-emr-stepfn-customer-daily-usage"
-  cluster_name       = "${var.environment}-ops-autopilot-emr-customer-daily-usage"
-  step_name          = "customer_daily_usage"
+  state_machine_name = "${var.environment}-ops-autopilot-emr-stepfn-transformer"
+  cluster_name       = "${var.environment}-ops-autopilot-emr-transformer"
+  step_name          = "transformer_hourly_usage"
   step_args = [
-    "--JOB_NAME", "customer_daily_usage",
-    "--INPUT_PATH", "s3://ops-autopilot-data/raw/electric-raw-dev/",
-    "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/customer_daily_usage/"
+    "--JOB_NAME", "transformer_hourly_usage",
+    "--INPUT_DB", "electric-raw-dev",
+    "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/transformer_hourly_usage/"
   ]
 
   second_step_enabled      = true
@@ -272,19 +272,19 @@ module "emr_stepfn_customer_daily_usage" {
   second_upload_script     = true
   second_step_args = [
     "--JOB_NAME", "transformer_daily_usage",
-    "--INPUT_PATH", "s3://ops-autopilot-data/raw/electric-raw-dev/",
+    "--INPUT_DB", "electric-raw-dev",
     "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/transformer_daily_usage/"
   ]
 
   third_step_enabled       = true
-  third_step_name          = "transformer_hourly_usage"
-  third_script_key         = "emr-scripts/transformer_hourly_usage.py"
-  third_script_source_path = "${path.root}/emr-scripts/transformer_hourly_usage.py"
+  third_step_name          = "transformer_peak_hour"
+  third_script_key         = "emr-scripts/transformer_peak_hour.py"
+  third_script_source_path = "${path.root}/emr-scripts/transformer_peak_hour.py"
   third_upload_script      = true
   third_step_args = [
-    "--JOB_NAME", "transformer_hourly_usage",
+    "--JOB_NAME", "transformer_peak_hour",
     "--INPUT_DB", "electric-raw-dev",
-    "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/transformer_hourly_usage/"
+    "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/transformer_peak_hour/"
   ]
 }
 

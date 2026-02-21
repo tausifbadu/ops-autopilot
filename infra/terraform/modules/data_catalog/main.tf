@@ -567,20 +567,20 @@ resource "aws_glue_catalog_table" "transformer_daily_usage" {
       type = "string"
     }
     columns {
-      name = "usage_date"
+      name = "daily_usage_kwh"
+      type = "double"
+    }
+    columns {
+      name = "usage_timestamp"
+      type = "timestamp"
+    }
+    columns {
+      name = "load_date"
       type = "date"
     }
     columns {
-      name = "total_kwh"
-      type = "double"
-    }
-    columns {
-      name = "peak_kwh"
-      type = "double"
-    }
-    columns {
-      name = "avg_kwh"
-      type = "double"
+      name = "load_datetime"
+      type = "timestamp"
     }
   }
 
@@ -614,20 +614,28 @@ resource "aws_glue_catalog_table" "transformer_hourly_usage" {
     }
 
     columns {
-      name = "day_timestamp"
-      type = "timestamp"
+      name = "transformer_id"
+      type = "string"
     }
     columns {
-      name = "hours_usage"
+      name = "hour"
       type = "int"
     }
     columns {
-      name = "sum_hourly"
+      name = "hour_usage_kwh"
       type = "double"
     }
     columns {
-      name = "transformer_id"
-      type = "string"
+      name = "usage_timestamp"
+      type = "timestamp"
+    }
+    columns {
+      name = "load_date"
+      type = "date"
+    }
+    columns {
+      name = "load_datetime"
+      type = "timestamp"
     }
   }
 
@@ -763,14 +771,6 @@ resource "aws_glue_catalog_table" "transformer_peak_hour" {
     }
 
     columns {
-      name = "hour_timestamp"
-      type = "timestamp"
-    }
-    columns {
-      name = "sum_hourly"
-      type = "double"
-    }
-    columns {
       name = "transformer_id"
       type = "string"
     }
@@ -779,7 +779,7 @@ resource "aws_glue_catalog_table" "transformer_peak_hour" {
       type = "double"
     }
     columns {
-      name = "winter_max_timestamp"
+      name = "winter_datetime"
       type = "timestamp"
     }
     columns {
@@ -787,22 +787,9 @@ resource "aws_glue_catalog_table" "transformer_peak_hour" {
       type = "double"
     }
     columns {
-      name = "summer_max_timestamp"
+      name = "summer_datetime"
       type = "timestamp"
     }
-  }
-
-  partition_keys {
-    name = "year"
-    type = "int"
-  }
-  partition_keys {
-    name = "month"
-    type = "int"
-  }
-  partition_keys {
-    name = "day"
-    type = "int"
   }
 }
 

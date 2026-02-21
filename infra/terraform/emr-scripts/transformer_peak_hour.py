@@ -27,7 +27,7 @@ def main():
     WITH hourly_usage AS (
         SELECT
             date_trunc('hour', mu.`timestamp`) AS hour_timestamp,
-            SUM(mu.kwh) AS sum_hourly,
+            round(SUM(mu.kwh),2) AS sum_hourly,
             tmm.transformer_id,
             year(mu.`timestamp`) AS year,
             month(mu.`timestamp`) AS month,
@@ -71,17 +71,12 @@ def main():
         WHERE rn = 1
     )
     SELECT
-        h.hour_timestamp,
-        h.sum_hourly,
         h.transformer_id,
-        h.year,
-        h.month,
-        h.day,
         w.season_max AS winter_max,
-        w.season_max_timestamp AS winter_max_timestamp,
+        w.season_max_timestamp AS winter_datetime,
         s.season_max AS summer_max,
-        s.season_max_timestamp AS summer_max_timestamp
-    FROM hourly_usage h
+        s.season_max_timestamp AS summer_datetime
+    FROM `{input_db}`.`transformer_table` h
     LEFT JOIN season_max w
       ON h.transformer_id = w.transformer_id
      AND w.season = 'winter'
@@ -95,7 +90,6 @@ def main():
     (
         peak_df.write
         .mode("overwrite")
-        .partitionBy("year", "month", "day")
         .parquet(output_path)
     )
 

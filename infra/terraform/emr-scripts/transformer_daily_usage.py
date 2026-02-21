@@ -1,5 +1,5 @@
 import sys
-from pyspark.sql import SparkSession, functions as F
+from pyspark.sql import SparkSession
 
 
 def get_arg(flag: str) -> str:
@@ -13,33 +13,44 @@ def get_arg(flag: str) -> str:
 
 def main():
     job_name = get_arg("--JOB_NAME")
-    input_path = get_arg("--INPUT_PATH").rstrip("/") + "/"
+    input_db = get_arg("--INPUT_DB")
     output_path = get_arg("--OUTPUT_PATH").rstrip("/") + "/"
 
-    spark = SparkSession.builder.appName(job_name).getOrCreate()
-
-    meter_usage = spark.read.parquet(f"{input_path}meter_usage/")
-    transformer_meter = spark.read.parquet(f"{input_path}transformer_meter_mapping/")
-
-    usage = meter_usage.withColumn("usage_date", F.to_date(F.col("timestamp")))
-    joined = usage.join(transformer_meter, on="meter_id", how="inner")
-
-    daily = (
-        joined.groupBy("transformer_id", "usage_date")
-        .agg(
-            F.sum("kwh").alias("total_kwh"),
-            F.max("kwh").alias("peak_kwh"),
-            F.avg("kwh").alias("avg_kwh"),
-        )
+    spark = (
+        SparkSession.builder
+        .appName(job_name)
+        .enableHiveSupport()
+        .getOrCreate()
     )
 
-    daily = (
-        daily.withColumn("year", F.year("usage_date"))
-        .withColumn("month", F.month("usage_date"))
-        .withColumn("day", F.dayofmonth("usage_date"))
-    )
+    query = f"""
+    SELECT
+        tmm.transformer_id,
+        year(mu.`timestamp`) AS year,
+        month(mu.`timestamp`) AS month,
+        day(mu.`timestamp`) AS day,
+        ROUND(SUM(mu.kwh), 2) AS daily_usage_kwh,
+        date_trunc('day', mu.`timestamp`) AS usage_timestamp,
+        current_date() AS load_date,
+        current_timestamp() AS load_datetime
+    FROM `{input_db}`.`meter_usage` AS mu
+    JOIN `{input_db}`.`transformer_meter_mapping` AS tmm
+      ON mu.meter_id = tmm.meter_id
+    GROUP BY
+        tmm.transformer_id,
+        year(mu.`timestamp`),
+        month(mu.`timestamp`),
+        day(mu.`timestamp`),
+        date_trunc('day', mu.`timestamp`)
+    """
 
-    daily.write.mode("overwrite").partitionBy("year", "month", "day").parquet(output_path)
+    df = spark.sql(query)
+    (
+        df.write
+        .mode("overwrite")
+        .partitionBy("year", "month", "day")
+        .parquet(output_path)
+    )
 
     spark.stop()
 

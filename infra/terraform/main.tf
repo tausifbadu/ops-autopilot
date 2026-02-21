@@ -317,6 +317,46 @@ module "emr_stepfn_update_meter_usage" {
   ]
 }
 
+# Step Function: EMR classic cluster -> transformer_peak_hour (step 1) -> meter_peak_hour_seasonal (step 2) -> terminate
+module "emr_stepfn_peak_hours" {
+  source = "./modules/emr_stepfn"
+
+  environment        = var.environment
+  script_bucket_name = module.s3.bucket_names["scripts"]
+  script_key         = "emr-scripts/transformer_peak_hour.py"
+  script_source_path = "${path.root}/emr-scripts/transformer_peak_hour.py"
+  upload_script      = true
+
+  data_bucket_name = module.s3.bucket_names["data"]
+  input_prefix     = "raw/electric-raw-dev/"
+  output_prefix    = "curated/peak_hours/"
+  log_prefix       = "emr-logs/"
+
+  release_label        = "emr-6.15.0"
+  master_instance_type = "m5.xlarge"
+  subnet_id            = module.vpc.public_subnet_ids[0]
+
+  state_machine_name = "${var.environment}-ops-autopilot-emr-stepfn-peak-hours"
+  cluster_name       = "${var.environment}-ops-autopilot-emr-peak-hours"
+  step_name          = "transformer_peak_hour"
+  step_args = [
+    "--JOB_NAME", "transformer_peak_hour",
+    "--INPUT_DB", "electric-raw-dev",
+    "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/transformer_peak_hour/"
+  ]
+
+  second_step_enabled      = true
+  second_step_name         = "meter_peak_hour_seasonal"
+  second_script_key        = "emr-scripts/meter_peak_hour_seasonal.py"
+  second_script_source_path = "${path.root}/emr-scripts/meter_peak_hour_seasonal.py"
+  second_upload_script     = true
+  second_step_args = [
+    "--JOB_NAME", "meter_peak_hour_seasonal",
+    "--INPUT_DB", "electric-raw-dev",
+    "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/meter_peak_hour_seasonal/"
+  ]
+}
+
 # ---------------------------------------------------------------------------
 # EMR Notebook Cluster - Single-node m5.xlarge with Spark + Livy + Jupyter
 # Access via EMR Console "Notebooks" tab or attach an EMR Studio workspace.

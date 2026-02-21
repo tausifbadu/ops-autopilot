@@ -746,3 +746,100 @@ resource "aws_glue_catalog_table" "updated_meter_reading" {
     type = "int"
   }
 }
+
+resource "aws_glue_catalog_table" "transformer_peak_hour" {
+  name          = "transformer_peak_hour"
+  database_name = aws_glue_catalog_database.electric_curated_dev.name
+  table_type    = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.data_bucket_name}/curated/transformer_peak_hour/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "parquet_serde"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+    }
+
+    columns {
+      name = "hour_timestamp"
+      type = "timestamp"
+    }
+    columns {
+      name = "sum_hourly"
+      type = "double"
+    }
+    columns {
+      name = "transformer_id"
+      type = "string"
+    }
+    columns {
+      name = "winter_max"
+      type = "double"
+    }
+    columns {
+      name = "winter_max_timestamp"
+      type = "timestamp"
+    }
+    columns {
+      name = "summer_max"
+      type = "double"
+    }
+    columns {
+      name = "summer_max_timestamp"
+      type = "timestamp"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "int"
+  }
+  partition_keys {
+    name = "month"
+    type = "int"
+  }
+  partition_keys {
+    name = "day"
+    type = "int"
+  }
+}
+
+resource "aws_glue_catalog_table" "meter_peak_hour_seasonal" {
+  name          = "meter_peak_hour_seasonal"
+  database_name = aws_glue_catalog_database.electric_curated_dev.name
+  table_type    = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.data_bucket_name}/curated/meter_peak_hour_seasonal/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "parquet_serde"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+    }
+
+    columns {
+      name = "meter_id"
+      type = "string"
+    }
+    columns {
+      name = "winter_time"
+      type = "timestamp"
+    }
+    columns {
+      name = "winter_max"
+      type = "double"
+    }
+    columns {
+      name = "summer_time"
+      type = "timestamp"
+    }
+    columns {
+      name = "summer_max"
+      type = "double"
+    }
+  }
+}

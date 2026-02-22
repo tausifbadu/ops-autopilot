@@ -119,9 +119,9 @@ module "dynamodb" {
 
 
 module "sqs" {
-   source = "./modules/sqs"
+  source = "./modules/sqs"
 
-   environment = var.environment
+  environment = var.environment
 }
 
 # ECR Repositories: agent-host + 4 MCP servers only
@@ -201,9 +201,9 @@ module "emr_stepfn" {
 module "data_catalog" {
   source = "./modules/data_catalog"
 
-  data_bucket_name        = module.s3.bucket_names["data"]
-  database_name           = "electric-raw-dev"
-  curated_database_name   = "electric-curated-dev"
+  data_bucket_name      = module.s3.bucket_names["data"]
+  database_name         = "electric-raw-dev"
+  curated_database_name = "electric-curated-dev"
 }
 
 # Glue job: generate raw electric tables (cheapest Glue job)
@@ -265,11 +265,11 @@ module "emr_stepn_transformer" {
     "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/transformer_hourly_usage/"
   ]
 
-  second_step_enabled      = true
-  second_step_name         = "transformer_daily_usage"
-  second_script_key        = "emr-scripts/transformer_daily_usage.py"
+  second_step_enabled       = true
+  second_step_name          = "transformer_daily_usage"
+  second_script_key         = "emr-scripts/transformer_daily_usage.py"
   second_script_source_path = "${path.root}/emr-scripts/transformer_daily_usage.py"
-  second_upload_script     = true
+  second_upload_script      = true
   second_step_args = [
     "--JOB_NAME", "transformer_daily_usage",
     "--INPUT_DB", "electric-raw-dev",
@@ -317,6 +317,37 @@ module "emr_stepfn_update_meter_usage" {
   ]
 }
 
+# Step Function: EMR classic cluster -> meter_daily_usage -> terminate
+module "emr_stepfn_meter_daily_usage" {
+  source = "./modules/emr_stepfn"
+
+  environment        = var.environment
+  script_bucket_name = module.s3.bucket_names["scripts"]
+  script_key         = "emr-scripts/meter_daily_usage.py"
+  script_source_path = "${path.root}/emr-scripts/meter_daily_usage.py"
+  upload_script      = true
+
+  data_bucket_name = module.s3.bucket_names["data"]
+  input_prefix     = "raw/electric-raw-dev/"
+  output_prefix    = "curated/meter_daily_usage/"
+  log_prefix       = "emr-logs/"
+
+  release_label        = "emr-6.15.0"
+  master_instance_type = "m5.xlarge"
+  subnet_id            = module.vpc.public_subnet_ids[0]
+
+  state_machine_name = "dev-ops-autopilot-emr-stepnfn-meter-daily-usage"
+  cluster_name       = "${var.environment}-ops-autopilot-emr-meter-daily-usage"
+  step_name          = "meter_daily_usage"
+  step_args = [
+    "--JOB_NAME", "meter_daily_usage",
+    "--INPUT_DB", "electric-raw-dev",
+    "--OUTPUT_DB", "electric-curated-dev",
+    "--OUTPUT_TABLE", "meter_daily_usage",
+    "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/meter_daily_usage/"
+  ]
+}
+
 # Step Function: EMR classic cluster -> transformer_peak_hour (step 1) -> meter_peak_hour_seasonal (step 2) -> terminate
 module "emr_stepfn_peak_hours" {
   source = "./modules/emr_stepfn"
@@ -345,11 +376,11 @@ module "emr_stepfn_peak_hours" {
     "--OUTPUT_PATH", "s3://ops-autopilot-data/curated/transformer_peak_hour/"
   ]
 
-  second_step_enabled      = true
-  second_step_name         = "meter_peak_hour_seasonal"
-  second_script_key        = "emr-scripts/meter_peak_hour_seasonal.py"
+  second_step_enabled       = true
+  second_step_name          = "meter_peak_hour_seasonal"
+  second_script_key         = "emr-scripts/meter_peak_hour_seasonal.py"
   second_script_source_path = "${path.root}/emr-scripts/meter_peak_hour_seasonal.py"
-  second_upload_script     = true
+  second_upload_script      = true
   second_step_args = [
     "--JOB_NAME", "meter_peak_hour_seasonal",
     "--INPUT_DB", "electric-raw-dev",
@@ -440,197 +471,197 @@ module "emr_notebook" {
 # }
 
 module "pipeline_event_transformer" {
-   source = "./modules/pipeline-event-transformer"
+  source = "./modules/pipeline-event-transformer"
 
-   environment        = var.environment
-   lambda_source_path  = "${path.root}/lambda/pipeline-event-transformer"
-   sqs_queue_url       = module.sqs.queue_urls["incidents"]
-   sqs_queue_arn      = module.sqs.queue_arns["incidents"]
-   default_tier        = var.environment == "prod" ? "prod" : "nonprod"
+  environment        = var.environment
+  lambda_source_path = "${path.root}/lambda/pipeline-event-transformer"
+  sqs_queue_url      = module.sqs.queue_urls["incidents"]
+  sqs_queue_arn      = module.sqs.queue_arns["incidents"]
+  default_tier       = var.environment == "prod" ? "prod" : "nonprod"
 }
 
- module "eventbridge" {
-   source = "./modules/eventbridge"
+module "eventbridge" {
+  source = "./modules/eventbridge"
 
-   environment          = var.environment
-   lambda_function_arn  = module.pipeline_event_transformer.function_arn
-   lambda_function_name = module.pipeline_event_transformer.function_name
+  environment          = var.environment
+  lambda_function_arn  = module.pipeline_event_transformer.function_arn
+  lambda_function_name = module.pipeline_event_transformer.function_name
 }
 
- #---------------------------------------------------------------------------
- #ECS Cluster and Services - COMMENTED OUT (uncomment to recreate)
- #Run: terraform apply to destroy ECS + log groups; S3, DynamoDB, SQS, ECR, VPC, IAM remain
- #---------------------------------------------------------------------------
- # # ECS Cluster
- # resource "aws_ecs_cluster" "main" {
- #   name = "${var.environment}-ops-autopilot-cluster"
- #
- #   setting {
- #     name  = "containerInsights"
- #     value = "enabled"
- #   }
- #
- #   tags = {
- #     Name = "${var.environment}-ops-autopilot-cluster"
- #   }
- # }
- #
- # # CloudWatch Log Groups
- # resource "aws_cloudwatch_log_group" "agent_host" {
- #   name              = "/ecs/${var.environment}/ops-autopilot/agent-host"
- #   retention_in_days = var.log_retention_days
- #
- #   tags = {
- #     Name = "${var.environment}-agent-host-logs"
- #   }
- # }
- #
- # resource "aws_cloudwatch_log_group" "mcp_servers" {
- #   for_each = toset([
- #     "orchestration-sfn",
- #     "data-execution-glue-emr",
- #     "observability-cloudwatch",
- #     "devtools-github",
- #   ])
- #
- #   name              = "/ecs/${var.environment}/ops-autopilot/mcp-${each.key}"
- #   retention_in_days = var.log_retention_days
- #
- #   tags = {
- #     Name = "${var.environment}-mcp-${each.key}-logs"
- #   }
- # }
- #
- # # Service discovery so agent-host can resolve MCP hostnames (e.g. dev-mcp-data-execution-glue-emr.dev.local)
- # resource "aws_service_discovery_private_dns_namespace" "main" {
- #   name        = "${var.environment}.local"
- #   description = "Private DNS namespace for ECS service discovery (MCP servers)"
- #   vpc         = module.vpc.vpc_id
- # }
- #
- # resource "aws_service_discovery_service" "mcp" {
- #   for_each = toset([
- #     "orchestration-sfn",
- #     "data-execution-glue-emr",
- #     "observability-cloudwatch",
- #     "devtools-github",
- #   ])
- #
- #   name = "${var.environment}-mcp-${each.key}"
- #
- #   dns_config {
- #     namespace_id   = aws_service_discovery_private_dns_namespace.main.id
- #     dns_records {
- #       ttl  = 10
- #       type = "A"
- #     }
- #     routing_policy = "MULTIVALUE"
- #   }
- #
- #   health_check_custom_config {
- #     failure_threshold = 1
- #   }
- # }
- #
- # # ECS: Agent Host
- # module "agent_host" {
- #   source = "./modules/ecs-service"
- #
- #   name               = "agent-host"
- #   environment        = var.environment
- #   cluster_id         = aws_ecs_cluster.main.id
- #   ecr_repository_uri = module.ecr.repository_uris["ops-autopilot/agent-host"]
- #   task_role_arn      = module.iam.agent_host_task_role_arn
- #   execution_role_arn = module.iam.ecs_execution_role_arn
- #   log_group_name     = aws_cloudwatch_log_group.agent_host.name
- #
- #   cpu    = var.agent_host_cpu
- #   memory = var.agent_host_memory
- #
- #   desired_count = var.agent_host_desired_count
- #
- #   subnet_ids         = module.vpc.private_subnet_ids
- #   security_group_ids = [module.vpc.ecs_security_group_id]
- #
- #   environment_variables = merge(
- #     {
- #       AWS_REGION             = var.aws_region
- #       ENVIRONMENT            = var.environment
- #       SQS_QUEUE_INCIDENTS    = module.sqs.queue_urls["incidents"]
- #       SQS_QUEUE_DQ           = module.sqs.queue_urls["dq_checks"]
- #       SQS_QUEUE_COST         = module.sqs.queue_urls["cost_scan"]
- #       SQS_QUEUE_DAILY        = module.sqs.queue_urls["daily_sweep"]
- #       MCP_ORCHESTRATION_URL  = "http://${module.mcp_servers["orchestration-sfn"].service_name}.${var.environment}.local:8001"
- #       MCP_OBSERVABILITY_URL  = "http://${module.mcp_servers["observability-cloudwatch"].service_name}.${var.environment}.local:8002"
- #       MCP_DATA_EXECUTION_URL = "http://${module.mcp_servers["data-execution-glue-emr"].service_name}.${var.environment}.local:8003"
- #       MCP_DEVTOOLS_URL       = "http://${module.mcp_servers["devtools-github"].service_name}.${var.environment}.local:8007"
- #       DYNAMODB_REGISTRY      = module.dynamodb.table_names["workflow_registry"]
- #       DYNAMODB_INCIDENTS     = module.dynamodb.table_names["incidents"]
- #       S3_EVIDENCE_BUCKET     = module.s3.bucket_names["evidence"]
- #       LLM_PROVIDER           = var.llm_provider
- #     },
- #     var.llm_model != null && var.llm_model != "" ? { LLM_MODEL = var.llm_model } : {}
- #   )
- #
- #   secrets = local.llm_api_key_secret_arn != "" ? { LLM_API_KEY = local.llm_api_key_secret_arn } : {}
- # }
- #
- # # ECS: MCP Servers (orchestration-sfn, data-execution-glue-emr, observability-cloudwatch, devtools-github)
- # module "mcp_servers" {
- #   source = "./modules/ecs-service"
- #
- #   for_each = {
- #     "orchestration-sfn" = {
- #       port   = 8001
- #       cpu    = 256
- #       memory = 512
- #     }
- #     "data-execution-glue-emr" = {
- #       port   = 8003
- #       cpu    = 256
- #       memory = 512
- #     }
- #     "observability-cloudwatch" = {
- #       port   = 8002
- #       cpu    = 256
- #       memory = 512
- #     }
- #     "devtools-github" = {
- #       port   = 8007
- #       cpu    = 256
- #       memory = 512
- #     }
- #   }
- #
- #   name               = "mcp-${each.key}"
- #   environment        = var.environment
- #   cluster_id         = aws_ecs_cluster.main.id
- #   ecr_repository_uri = module.ecr.repository_uris["ops-autopilot/mcp-${each.key}"]
- #   task_role_arn      = module.iam.mcp_server_task_role_arns[each.key]
- #   execution_role_arn = module.iam.ecs_execution_role_arn
- #   log_group_name     = aws_cloudwatch_log_group.mcp_servers[each.key].name
- #
- #   service_registry_arn = aws_service_discovery_service.mcp[each.key].arn
- #
- #   cpu    = each.value.cpu
- #   memory = each.value.memory
- #
- #   desired_count = var.mcp_server_desired_count
- #
- #   container_port = each.value.port
- #
- #   subnet_ids         = module.vpc.private_subnet_ids
- #   security_group_ids = [module.vpc.ecs_security_group_id]
- #
- #   environment_variables = {
- #     HOST              = "0.0.0.0"
- #     PORT              = tostring(each.value.port)
- #     AWS_REGION        = var.aws_region
- #     ENVIRONMENT       = var.environment
- #     ALLOWLIST_ENABLED = "true"
- #     LOG_LEVEL         = "INFO"
- #   }
- # }
+#---------------------------------------------------------------------------
+#ECS Cluster and Services - COMMENTED OUT (uncomment to recreate)
+#Run: terraform apply to destroy ECS + log groups; S3, DynamoDB, SQS, ECR, VPC, IAM remain
+#---------------------------------------------------------------------------
+# # ECS Cluster
+# resource "aws_ecs_cluster" "main" {
+#   name = "${var.environment}-ops-autopilot-cluster"
+#
+#   setting {
+#     name  = "containerInsights"
+#     value = "enabled"
+#   }
+#
+#   tags = {
+#     Name = "${var.environment}-ops-autopilot-cluster"
+#   }
+# }
+#
+# # CloudWatch Log Groups
+# resource "aws_cloudwatch_log_group" "agent_host" {
+#   name              = "/ecs/${var.environment}/ops-autopilot/agent-host"
+#   retention_in_days = var.log_retention_days
+#
+#   tags = {
+#     Name = "${var.environment}-agent-host-logs"
+#   }
+# }
+#
+# resource "aws_cloudwatch_log_group" "mcp_servers" {
+#   for_each = toset([
+#     "orchestration-sfn",
+#     "data-execution-glue-emr",
+#     "observability-cloudwatch",
+#     "devtools-github",
+#   ])
+#
+#   name              = "/ecs/${var.environment}/ops-autopilot/mcp-${each.key}"
+#   retention_in_days = var.log_retention_days
+#
+#   tags = {
+#     Name = "${var.environment}-mcp-${each.key}-logs"
+#   }
+# }
+#
+# # Service discovery so agent-host can resolve MCP hostnames (e.g. dev-mcp-data-execution-glue-emr.dev.local)
+# resource "aws_service_discovery_private_dns_namespace" "main" {
+#   name        = "${var.environment}.local"
+#   description = "Private DNS namespace for ECS service discovery (MCP servers)"
+#   vpc         = module.vpc.vpc_id
+# }
+#
+# resource "aws_service_discovery_service" "mcp" {
+#   for_each = toset([
+#     "orchestration-sfn",
+#     "data-execution-glue-emr",
+#     "observability-cloudwatch",
+#     "devtools-github",
+#   ])
+#
+#   name = "${var.environment}-mcp-${each.key}"
+#
+#   dns_config {
+#     namespace_id   = aws_service_discovery_private_dns_namespace.main.id
+#     dns_records {
+#       ttl  = 10
+#       type = "A"
+#     }
+#     routing_policy = "MULTIVALUE"
+#   }
+#
+#   health_check_custom_config {
+#     failure_threshold = 1
+#   }
+# }
+#
+# # ECS: Agent Host
+# module "agent_host" {
+#   source = "./modules/ecs-service"
+#
+#   name               = "agent-host"
+#   environment        = var.environment
+#   cluster_id         = aws_ecs_cluster.main.id
+#   ecr_repository_uri = module.ecr.repository_uris["ops-autopilot/agent-host"]
+#   task_role_arn      = module.iam.agent_host_task_role_arn
+#   execution_role_arn = module.iam.ecs_execution_role_arn
+#   log_group_name     = aws_cloudwatch_log_group.agent_host.name
+#
+#   cpu    = var.agent_host_cpu
+#   memory = var.agent_host_memory
+#
+#   desired_count = var.agent_host_desired_count
+#
+#   subnet_ids         = module.vpc.private_subnet_ids
+#   security_group_ids = [module.vpc.ecs_security_group_id]
+#
+#   environment_variables = merge(
+#     {
+#       AWS_REGION             = var.aws_region
+#       ENVIRONMENT            = var.environment
+#       SQS_QUEUE_INCIDENTS    = module.sqs.queue_urls["incidents"]
+#       SQS_QUEUE_DQ           = module.sqs.queue_urls["dq_checks"]
+#       SQS_QUEUE_COST         = module.sqs.queue_urls["cost_scan"]
+#       SQS_QUEUE_DAILY        = module.sqs.queue_urls["daily_sweep"]
+#       MCP_ORCHESTRATION_URL  = "http://${module.mcp_servers["orchestration-sfn"].service_name}.${var.environment}.local:8001"
+#       MCP_OBSERVABILITY_URL  = "http://${module.mcp_servers["observability-cloudwatch"].service_name}.${var.environment}.local:8002"
+#       MCP_DATA_EXECUTION_URL = "http://${module.mcp_servers["data-execution-glue-emr"].service_name}.${var.environment}.local:8003"
+#       MCP_DEVTOOLS_URL       = "http://${module.mcp_servers["devtools-github"].service_name}.${var.environment}.local:8007"
+#       DYNAMODB_REGISTRY      = module.dynamodb.table_names["workflow_registry"]
+#       DYNAMODB_INCIDENTS     = module.dynamodb.table_names["incidents"]
+#       S3_EVIDENCE_BUCKET     = module.s3.bucket_names["evidence"]
+#       LLM_PROVIDER           = var.llm_provider
+#     },
+#     var.llm_model != null && var.llm_model != "" ? { LLM_MODEL = var.llm_model } : {}
+#   )
+#
+#   secrets = local.llm_api_key_secret_arn != "" ? { LLM_API_KEY = local.llm_api_key_secret_arn } : {}
+# }
+#
+# # ECS: MCP Servers (orchestration-sfn, data-execution-glue-emr, observability-cloudwatch, devtools-github)
+# module "mcp_servers" {
+#   source = "./modules/ecs-service"
+#
+#   for_each = {
+#     "orchestration-sfn" = {
+#       port   = 8001
+#       cpu    = 256
+#       memory = 512
+#     }
+#     "data-execution-glue-emr" = {
+#       port   = 8003
+#       cpu    = 256
+#       memory = 512
+#     }
+#     "observability-cloudwatch" = {
+#       port   = 8002
+#       cpu    = 256
+#       memory = 512
+#     }
+#     "devtools-github" = {
+#       port   = 8007
+#       cpu    = 256
+#       memory = 512
+#     }
+#   }
+#
+#   name               = "mcp-${each.key}"
+#   environment        = var.environment
+#   cluster_id         = aws_ecs_cluster.main.id
+#   ecr_repository_uri = module.ecr.repository_uris["ops-autopilot/mcp-${each.key}"]
+#   task_role_arn      = module.iam.mcp_server_task_role_arns[each.key]
+#   execution_role_arn = module.iam.ecs_execution_role_arn
+#   log_group_name     = aws_cloudwatch_log_group.mcp_servers[each.key].name
+#
+#   service_registry_arn = aws_service_discovery_service.mcp[each.key].arn
+#
+#   cpu    = each.value.cpu
+#   memory = each.value.memory
+#
+#   desired_count = var.mcp_server_desired_count
+#
+#   container_port = each.value.port
+#
+#   subnet_ids         = module.vpc.private_subnet_ids
+#   security_group_ids = [module.vpc.ecs_security_group_id]
+#
+#   environment_variables = {
+#     HOST              = "0.0.0.0"
+#     PORT              = tostring(each.value.port)
+#     AWS_REGION        = var.aws_region
+#     ENVIRONMENT       = var.environment
+#     ALLOWLIST_ENABLED = "true"
+#     LOG_LEVEL         = "INFO"
+#   }
+# }
 
 
 

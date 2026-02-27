@@ -1,55 +1,49 @@
-import json
-import random
-import os
+import mysql.connector
 import time
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
-from kafka import KafkaProducer
+import random
 
-# ---------- SETTINGS ----------
-TZ = ZoneInfo("America/Chicago")
-BOOTSTRAP_SERVERS = os.environ.get("KAFKA_BOOTSTRAP", "kafka:29092")
-TOPIC = os.environ.get("TOPIC", "meter_voltage_live") # Updated Topic Name
+config = {
+    'host': 'mysql',
+    'user': 'root',
+    'password': 'mysecret8050',
+    'database': 'meter_kafka_test',
+    'autocommit': True
+}
 
-METER_MIN = 1
-METER_MAX = 500
-VOLT_MIN = 114.0  # Typical residential low
-VOLT_MAX = 126.0  # Typical residential high
-RECORDS_PER_BATCH = 30  
+def connect_to_mysql():
+    while True:
+        try:
+            print("Attempting to connect to MySQL...")
+            conn = mysql.connector.connect(**config)
+            print("Connected to MySQL successfully!")
+            return conn
+        except mysql.connector.Error as err:
+            print(f"Connection failed: {err}. Retrying in 5 seconds...")
+            time.sleep(5)
 
-producer = KafkaProducer(
-    bootstrap_servers=BOOTSTRAP_SERVERS,
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')
-)
+db = connect_to_mysql()
+cursor = db.cursor()
 
-def generate_batch():
-    # Uses current time for the batch start
-    start_time = datetime.now(TZ).replace(second=0, microsecond=0)
-    
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Generating {RECORDS_PER_BATCH} voltage records...")
-    
-    for i in range(RECORDS_PER_BATCH):
-        # Spreading records by 1 second intervals within the batch
-        ts = start_time + timedelta(seconds=i)
+# Continuous loop for batch generation
+try:
+    while True:
+        print(f"Starting batch of 100 readings...")
         
-        payload = {
-            "meter_id": f"meter-{random.randint(METER_MIN, METER_MAX)}",
-            "timestamp": ts.isoformat(),
-            "voltage": round(random.uniform(VOLT_MIN, VOLT_MAX), 2), # Changed from kwh
-            "interval_minutes": 15
-        }
-
-        producer.send(TOPIC, value=payload)
-    
-    producer.flush()
-    print(f"Batch sent to topic: {TOPIC}")
-
-if __name__ == "__main__":
-    print("Generator started. Press Ctrl+C to stop.")
-    try:
-        while True:
-            generate_batch()
-            print("Sleeping for 60 seconds...")
-            time.sleep(60) 
-    except KeyboardInterrupt:
-        print("Generator stopped by user.")
+        data_batch = []
+        for _ in range(100):
+            meter_id = f"METER-{random.randint(1000, 9999)}"
+            usage = round(random.uniform(0.1, 10.0), 2)
+            data_batch.append((meter_id, usage))
+        
+        # Batch insert for efficiency
+        insert_query = "INSERT INTO readings (meter_id, usage_kwh) VALUES (%s, %s)"
+        cursor.executemany(insert_query, data_batch)
+        
+        print(f"Batch complete. 100 rows inserted. Sleeping for 60 seconds...")
+        time.sleep(60)
+        
+except KeyboardInterrupt:
+    print("Stopping generator...")
+finally:
+    cursor.close()
+    db.close()

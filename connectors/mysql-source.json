@@ -1,0 +1,21 @@
+{
+  "name": "mysql-source-meter-test",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+    "database.hostname": "mysql",
+    "database.port": "3306",
+    "database.user": "debezium",
+    "database.password": "dbz_secure_2026",
+    "database.server.id": "223345",
+    "topic.prefix": "prod",
+    "database.include.list": "meter_kafka_test",
+    "table.include.list": "meter_kafka_test.readings",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:29092",
+    "schema.history.internal.kafka.topic": "schema-history.meter-test",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false"
+  }
+}

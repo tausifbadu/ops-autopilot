@@ -1,0 +1,14 @@
+FROM debezium/connect:2.5
+
+USER root
+
+# Install the Confluent S3 sink connector into a separate plugin directory.
+ARG S3_CONNECTOR_VERSION=10.5.15
+RUN microdnf install -y curl unzip \
+    && mkdir -p /kafka/connect-extra/confluentinc-kafka-connect-s3 \
+    && curl -fSL -o /tmp/s3.zip "https://api.hub.confluent.io/api/plugins/confluentinc/kafka-connect-s3/versions/${S3_CONNECTOR_VERSION}/archive" \
+    && unzip /tmp/s3.zip -d /kafka/connect-extra/confluentinc-kafka-connect-s3 \
+    && rm -f /tmp/s3.zip \
+    && microdnf clean all
+
+USER kafka

@@ -9,6 +9,7 @@
     "database.password": "dbz_secure_2026",
     "database.server.id": "223345",
     "topic.prefix": "prod",
+    "decimal.handling.mode": "string",
     "database.include.list": "meter_kafka_test",
     "table.include.list": "meter_kafka_test.readings",
     "include.schema.changes": "false",

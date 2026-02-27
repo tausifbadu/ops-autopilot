@@ -11,11 +11,22 @@
     "topic.prefix": "prod",
     "database.include.list": "meter_kafka_test",
     "table.include.list": "meter_kafka_test.readings",
+    "include.schema.changes": "false",
     "schema.history.internal.kafka.bootstrap.servers": "kafka:29092",
     "schema.history.internal.kafka.topic": "schema-history.meter-test",
     "key.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
-    "key.converter.schemas.enable": "false",
-    "value.converter.schemas.enable": "false"
+    "key.converter.schemas.enable": "true",
+    "value.converter.schemas.enable": "true",
+    "transforms": "unwrap,setKeySchema,setValueSchema",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.unwrap.delete.handling.mode": "drop",
+    "transforms.setKeySchema.type": "org.apache.kafka.connect.transforms.SetSchemaMetadata$Key",
+    "transforms.setKeySchema.schema.name": "meter_kafka_test.readings.Key",
+    "transforms.setKeySchema.schema.version": "1",
+    "transforms.setValueSchema.type": "org.apache.kafka.connect.transforms.SetSchemaMetadata$Value",
+    "transforms.setValueSchema.schema.name": "meter_kafka_test.readings.Value",
+    "transforms.setValueSchema.schema.version": "1"
   }
 }

@@ -86,6 +86,7 @@ module "s3" {
 
 module "upload_csv" {
   source = "./modules/s3_upload"
+  count  = fileexists("${path.module}/data/sample.csv") ? 1 : 0
 
   bucket_name = "ops-autopilot-data"
   s3_key      = "raw/csv/sample.csv"
@@ -94,6 +95,7 @@ module "upload_csv" {
 
 module "upload_attendance_csv" {
   source = "./modules/s3_upload"
+  count  = fileexists("${path.module}/data/attendance.csv") ? 1 : 0
 
   bucket_name = "ops-autopilot-data"
   s3_key      = "raw/csv/attendance.csv"
@@ -103,7 +105,7 @@ module "upload_attendance_csv" {
 module "upload_all_csv" {
   source = "./modules/s3_upload"
 
-  for_each = toset(fileset("${path.module}/data", "*.csv"))
+  for_each = toset(try(fileset("${path.module}/data", "*.csv"), []))
 
   bucket_name = "ops-autopilot-data"
   s3_key      = "raw/csv/${each.value}"
